@@ -49,8 +49,10 @@ Instead of spending **2 to 4 weeks** in manual requirement gathering, stakeholde
 - High-Level **Solution Architecture (HLD)** & Tech Stacks
 - Step-by-Step **BPMN Process Workflows**
 - Normalized **Relational Database Schemas (DDL)**
-- Component-Level **UI/UX Wireframes**
+- Component-Level **UI/UX Wireframes** (Dedicated Gemini Layout Engine)
+- **Live Deployed Product Prototype Webpage** (Round-Robin Dual AI Engine: Gemini + Groq)
 - 3-Tier **Effort, Cost Bands & Delivery Timelines**
+- **Immutable Role-Based Access Control (RBAC)** (Admin, Developer, Viewer locked at registration)
 - Full **Version Ledger, Side-by-Side Diffs & Rollbacks**
 - Instant **PDF, Word (.docx), and JSON Exports**
 
@@ -132,13 +134,14 @@ When an evaluator reviews the platform, this is the exact flow to experience:
    - Generates all deliverables in parallel with automated validation.
 
 4. **Deliverable Hub (`/result/:id`)**:
-   - Evaluator explores 6 interactive tabs:
+   - Evaluator explores 7 interactive tabs:
      - **Tab 1 — Executive BRD**: Scope, objectives, gap analysis, functional & non-functional requirements.
      - **Tab 2 — Architecture (HLD)**: System topology, modular components, tech stack rationale, security controls.
      - **Tab 3 — BPMN Process Flow**: Step-by-step visual workflow with roles, triggers, and decision gates.
      - **Tab 4 — Database Schema**: Relational tables, columns, primary/foreign keys, and SQL types.
-     - **Tab 5 — Wireframes**: UI component blueprints and layout specifications.
-     - **Tab 6 — Estimates & Roadmap**: 3-tier cost cards (Low/Mid/High) and phased timeline breakdown.
+     - **Tab 5 — Wireframes**: UI component blueprints, screen hierarchies, and realistic mock telemetry generated via a dedicated Gemini model.
+     - **Tab 6 — Product Prototype (Live Deployment)**: Fully functional, interactive web prototype generated via a round-robin dual AI engine (Google Gemini + Groq Cloud). Includes an interactive live iframe preview with Desktop/Tablet/Mobile viewport switching, a dedicated live public deployment endpoint (`/api/sessions/:id/prototype/live`), 1-click new tab testing, and downloadable `index.html`.
+     - **Tab 7 — Estimates & Roadmap**: 3-tier cost cards (Low/Mid/High in USD) and phased timeline breakdown in person-weeks.
 
 5. **Regeneration & Version Ledger (`/versions/:id`)**:
    - Click **"Regenerate Section"** on any tab (e.g. update BRD).
@@ -174,7 +177,14 @@ blueprintAI/
 │   ├── Data Types, Primary Keys, Foreign Keys, & Constraints
 ├── 📱 UI/UX Wireframe Specifications
 │   ├── Screen Hierarchies & Layout Wireframes
-│   └── Form Field Blueprints & Validation Rules
+│   ├── Component Specifications & Form Field Rules
+│   └── Realistic Data Models & Mock Telemetry
+├── 🚀 Interactive Product Prototype (Live Deployed Webpage)
+│   ├── Round-Robin Dual AI Engine (Gemini + Groq)
+│   ├── Self-Contained Responsive SPA (Tailwind + Vanilla JS)
+│   ├── Live Public Deployment at `/api/sessions/:id/prototype/live`
+│   ├── Multi-Device Viewport Cockpit (Desktop, Tablet, Mobile)
+│   └── 1-Click Code & `index.html` Export
 └── 💰 Effort, Cost & Roadmap Planning
     ├── 3-Tier Budget Model (MVP Baseline, Production Target, Enterprise Scale)
     └── Phase-by-Phase Timeline Allocation in Person-Weeks
@@ -352,8 +362,12 @@ The root `.env.example` provides the full configuration template:
 | `DB_PASSWORD` | *(empty)* | MySQL password |
 | `DB_NAME` | `compile_db` | Target database name |
 | `LLM_PROVIDER` | `auto` | Active provider: `auto`, `gemini`, `openai`, `anthropic`, `groq`, `deepseek`, `ollama` |
-| `GEMINI_API_KEY` | *(empty)* | Google Gemini API key |
-| `GEMINI_MODEL` | `gemini-3.6-flash` | Gemini model variant |
+| `GEMINI_API_KEY` | *(empty)* | Google Gemini primary API key |
+| `GEMINI_API_KEYS` | *(empty)* | Comma-delimited Gemini API key pool for round-robin rotation |
+| `GEMINI_MODEL` | `gemini-3.8-flash` | Gemini model variant |
+| `GEMINI_WIREFRAME_API_KEY` | *(empty)* | Dedicated Gemini API key for AI Wireframe synthesis |
+| `PROTOTYPE_GEMINI_KEY` | *(empty)* | Dedicated Gemini key for Prototype round-robin generator |
+| `PROTOTYPE_GROQ_KEY` | *(empty)* | Dedicated Groq key for Prototype round-robin generator |
 | `FALLBACK_TO_HEURISTICS` | `true` | Safe fallback if external LLM APIs fail |
 
 ---
@@ -368,12 +382,14 @@ Evaluators can verify every capability using this quick checklist:
 | **2. Responsive UI** | Resize browser or inspect mobile view (<768px) | Sidebar collapses into drawer, cards wrap to 1-col, zero horizontal overflow |
 | **3. Intake & Classification** | Submit problem on `/input` | Instantly classifies industry, complexity, and transitions to Discovery |
 | **4. AI Discovery** | Answer or skip questions on `/discovery/:id` | Generates 5–7 relevant questions; answers propagate to compilation |
-| **5. Multi-Tab Deliverables** | Inspect `/result/:id` | All 6 tabs load cleanly (BRD, Architecture, BPMN, DB, Wireframes, Estimates) |
+| **5. Multi-Tab Deliverables** | Inspect `/result/:id` | All 7 tabs load cleanly (BRD, Architecture, BPMN, DB, Wireframes, Prototype, Estimates) |
 | **6. Currency Accuracy** | View Cost Cards on Estimates Tab | Single dollar sign format (`$28,000`, `$45,000`, `$68,000`) without duplication |
 | **7. Clean Markdown** | Inspect Scope & Objectives | Rendered as styled typography without raw `#` or `**` characters |
 | **8. Modular Regeneration** | Click "Regenerate Section" on BRD tab | Only the BRD re-runs; notification confirms new snapshot created |
 | **9. Version History Diff** | Open `/versions/:id` & click "Compare with Current" | Side-by-side modal highlights differences between `v1.0` and `v2.0` |
 | **10. Multi-Format Export** | Click "Export" -> PDF / Word / JSON | Instant clean download with formatted corporate headers |
+| **11. Live Product Prototype** | Open Tab 6 or visit `/api/sessions/:id/prototype/live` | Fully interactive deployed web app renders in embedded iframe; switch Desktop/Tablet/Mobile viewports, open in external tab, and download standalone `index.html` |
+| **12. Immutable RBAC Enforcement** | Inspect Settings (`/settings` -> Team & RBAC) | Permanent role card displays `🔒 PERMANENT & LOCKED` bound to User ID; role switching is strictly forbidden (`403`) |
 
 ---
 

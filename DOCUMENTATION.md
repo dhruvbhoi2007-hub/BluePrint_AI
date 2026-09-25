@@ -34,14 +34,17 @@
 
 **BlueprintAI** (also called **Compile AI**) is an AI-powered enterprise blueprint generation tool. A user describes a software or business problem in plain English (or any language), and the system produces a structured, professional-grade planning document called a **Blueprint** that includes:
 
-- **Gap Analysis** — current-state vs desired-state
-- **Business Requirement Document (BRD)** — objectives, scope, stakeholders, functional and non-functional requirements, assumptions, constraints
+- **Gap Analysis & Business Requirement Document (BRD)** — objectives, scope, stakeholders, functional and non-functional requirements, assumptions, constraints
 - **High-Level Architecture / Solution Design (HLD)** — frontend, backend, database, major components, data flow, security considerations, tech stack with rationale
+- **BPMN 2.0 Process Workflows** — swimlane roles, automated/manual gateways, SLA thresholds
+- **Relational Database Schemas** — normalized tables, constraints, SQL types, and ERD diagrams
+- **AI UI/UX Wireframe Concepts** — screen hierarchies, component specs, and realistic mock telemetry powered by a dedicated Gemini layout engine
+- **Interactive Product Prototype (Live Deployed Webpage)** — dual-engine round-robin generation (Google Gemini + Groq Cloud) delivering a complete responsive web application accessible at `/api/sessions/:id/prototype/live`, previewed via an embedded interactive iframe with multi-device viewports
 - **Effort & Cost Estimate** — phase breakdown in weeks, cost bands (low / mid / high in USD), team assumptions, risk factors
 
-The generation is powered by **Google Gemini** (`gemini-3.8-flash`) backed by a 105,500-row synthetic enterprise dataset that the AI can search at generation time using Automatic Function Calling (AFC).
+The generation is powered by **Google Gemini** (`gemini-3.8-flash`) and **Groq Cloud** backed by a 105,500-row synthetic enterprise dataset that the AI can search at generation time using Automatic Function Calling (AFC).
 
-The product is built for teams — it has multi-user workspaces, a 3-tier RBAC system, version history, section-level regeneration, a credit/payment system (Razorpay), and export capabilities.
+The product is built for teams — it has multi-user workspaces, an immutable 3-tier RBAC system, version history, section-level regeneration, a live prototype deployment cockpit, a credit/payment system (Razorpay), and multi-format export capabilities.
 
 ---
 
@@ -65,23 +68,32 @@ GeneratingScreen — animated progress UI
           ↓
 POST /api/sessions/:id/generate  [Node.js → credit deduction → Python /compile]
           ↓
-Python FastAPI /compile pipeline:
+Python FastAPI /compile pipeline + Node.js Dual Engine:
   1. NLP Analysis (language detection, word count, sentences)
   2. Tier 1 ML Classifier (industry, company size, problem title, budget band, cost band)
   3. Industry detection (score-based keyword matching)
   4. Gemini gemini-3.8-flash with AFC:
       - Receives requirement + discovery answers
       - Can call search_dataset() AFC tool → TF-IDF similarity search on 105,500-row dataset
-      - Generates: Gap Analysis, BRD, Architecture, Estimate (4 sections sequentially)
-  5. Benchmark engine (dataset percentile comparison)
-  6. Compliance mapping (HIPAA, SOC 2, PCI-DSS from dataset security_notes)
-  7. Vendor lock-in analysis (tech stack keyword scoring)
+      - Generates: Gap Analysis, BRD, Architecture, BPMN, Database Schema, Estimate
+  5. Dedicated Wireframe Engine (Gemini) → synthesizes component specs & screen hierarchies
+  6. Round-Robin Prototype Engine (Gemini + Groq) → synthesizes deployed web prototype
+  7. Benchmark engine (dataset percentile comparison)
+  8. Compliance mapping (HIPAA, SOC 2, PCI-DSS from dataset security_notes)
+  9. Vendor lock-in analysis (tech stack keyword scoring)
           ↓
 Results stored in MySQL
           ↓
-ResultScreen (React) — renders all 4 sections with markdown
+ResultScreen (React) — renders all 7 interactive tabs:
+  Tab 1: Executive BRD & Scope
+  Tab 2: Solution Architecture (HLD) & Tech Stack Rationale
+  Tab 3: BPMN 2.0 Process Intelligence & Flow
+  Tab 4: Database Schema & Entity Relationships
+  Tab 5: UI/UX Wireframes (Dedicated Gemini Engine)
+  Tab 6: Product Prototype Cockpit & Live Webpage Deployment (Gemini + Groq)
+  Tab 7: Cost Estimates, Budget Bands & Implementation Roadmap
           ↓
-User can Edit / Regenerate individual sections / View Version History / Export
+User can Interact with Live App / Regenerate Sections / View Version Diffs / Export (PDF/Word/JSON)
 ```
 
 ---
@@ -727,44 +739,54 @@ gateway    VARCHAR(50) DEFAULT 'razorpay'
 
 ---
 
-## 12. Role-Based Access Control (RBAC)
+## 12. Role-Based Access Control (RBAC) & Immutable Identity
 
-### Roles and Mapping
+### Roles and Permission Matrix
 
-| DB Role | Frontend Normalised | Permissions |
-|---------|---------------------|-------------|
-| `owner` | `admin` | Full access — create, generate, delete, manage team |
-| `admin` | `admin` | Full access — create, generate, delete, manage team |
-| `member` | `developer` | Create, generate, edit — cannot delete sessions |
-| `developer` | `developer` | Create, generate, edit — cannot delete sessions |
-| `viewer` | `viewer` | Read-only — can view blueprints and versions only |
-| `read_only` | `viewer` | Read-only |
+| Role | Frontend Label | Key Capabilities & Privilege Bounds |
+|------|----------------|-------------------------------------|
+| `admin` / `owner` | **Administrator** | Full privileges: Create/generate blueprints, modular section regeneration, cloud sandbox production deployment (Vercel/Render), sign-off approval gates, and session deletion. |
+| `developer` / `member` | **Developer / Architect** | Standard authoring access: Create blueprints, interactive discovery chat, section regeneration, and code/diagram inspection. Restricted from live cloud deployments and session deletion. |
+| `viewer` / `read_only` | **Viewer (Auditor)** | Strict read-only access: Inspect generated blueprints, diagrams, interactive prototype sandbox, and export files. Intake creation, Q&A submission, section regeneration, and deployment actions are strictly disabled. |
 
-### Backend Enforcement
+### Strict Role Immutability Architecture
 
-RBAC is enforced at **two levels**:
+Unlike platforms where roles are fluidly toggled at runtime, BlueprintAI enforces **Role Immutability**:
 
-**Level 1 — Route middleware** (`requireRole()` in `authMiddleware.js`):
-```javascript
-// Only admin/owner can delete sessions
-router.delete('/:id', requireRole('admin', 'owner'), sessionController.deleteSession);
+1. **Signup Binding**:
+   - During registration (`/signup`), the user explicitly selects their workspace role (`Administrator`, `Developer`, or `Viewer`).
+   - This role is permanently bound to the user's primary key (`user_id`) in MySQL.
 
-// member+ can generate
-router.post('/:id/generate', requireRole('admin', 'developer', 'owner', 'member'), ...);
+2. **Backend Route Hardening**:
+   - `PUT /api/auth/role` (User self-role update): Immediately returns `403 Forbidden` with error:  
+     `"Forbidden: Account roles are immutable once registered and cannot be modified."`
+   - `PUT /api/auth/users/:memberId/role` (Admin team role update): Immediately returns `403 Forbidden` with error:  
+     `"Forbidden: Account roles are immutable once registered at signup and cannot be modified."`
+   - Privilege verification via `requireRole('admin', 'developer', ...)` middleware verifies the cryptographically signed JWT payload and prevents role tampering.
 
-// Only admin/owner can change another user's role
-router.put('/users/:memberId/role', requireRole('admin', 'owner'), authController.updateMemberRole);
+3. **Frontend & Settings Display**:
+   - In Settings (`/settings` -> *Team & RBAC Roles*), dynamic role-switching cards have been completely replaced with an **Assigned Workspace Role (Immutable)** display.
+   - Shows the locked role, user ID, active privileges, and a permanent lock badge (`🔒 PERMANENT & LOCKED`).
+   - The Workspace Team Members directory displays each colleague with a permanent `🔒 Permanent & Locked` indicator instead of an editable dropdown.
+   - `getUserRole()` in `cookieUtils.js` safely derives the role from verified server state, defaulting to least-privilege `'viewer'` if no session is active.
+
 ```
-
-**Level 2 — `normalizeRole()`** maps DB role strings to permission groups before comparison.
-
-If a user's role does not satisfy the route requirement, the backend returns `403 FORBIDDEN_ROLE`.
-
-### Frontend RBAC
-
-- `getUserRole()` in `cookieUtils.js` derives the role from the **verified server-stored user object** (`getStoredUser()?.role`), not from a raw `localStorage` value, preventing privilege escalation via browser manipulation
-- `setUserRole()` is async and calls `PUT /api/auth/role` to persist role changes to the database
-- `syncUserRoleWithBackend()` fetches the live role from the server and updates local state
+       [ Registration / Signup ]
+                  │ (Role Selected: Admin / Dev / Viewer)
+                  ▼
+         [ User ID Assigned ]
+                  │
+                  ▼
+      ┌───────────────────────┐
+      │  Immutable Binding    │
+      │  user_id ──► role     │
+      └───────────┬───────────┘
+                  │
+       ┌──────────┴──────────┐
+       ▼                     ▼
+[PUT /api/auth/role]   [Settings UI]
+  🔒 403 Forbidden     🔒 Read-only Badge & User ID
+```
 
 ---
 
@@ -903,6 +925,22 @@ Triggers full blueprint generation. Internally:
 5. Creates a version snapshot
 6. Returns all 4 section contents
 
+#### `GET /api/sessions/:id/prototype/live`
+Serves a **live, fully functional, standalone single-page web application** generated specifically for the session requirement.
+- **Content-Type**: `text/html; charset=utf-8`
+- **Output**: Complete HTML5 document styled with Tailwind CSS, custom fonts, interactive KPI telemetry, stateful components, and action handlers.
+- **Access**: Publicly accessible or iframe-embeddable directly from Tab 6 of the frontend.
+
+#### `POST /api/sessions/:id/prototype/generate`
+Manually triggers or regenerates the product prototype using the **Round-Robin Dual AI Engine**:
+- Alternates between Google Gemini and Groq Cloud with automatic cross-provider failover.
+- Injects generated interactive records, data tables, and executable HTML into the session record in MySQL.
+
+#### `PUT /api/auth/role` & `PUT /api/auth/users/:memberId/role`
+Both endpoints enforce strict account role immutability:
+- **Status**: `403 Forbidden`
+- **Response**: `{ "success": false, "message": "Forbidden: Account roles are immutable once registered and cannot be modified." }`
+
 #### `POST /api/payment/verify`
 ```json
 // Request
@@ -925,7 +963,7 @@ blueprintAI/
 ├── .env.example                  # Template for env vars
 ├── docker-compose.yml            # Docker setup (MySQL + services)
 ├── package.json                  # Frontend dependencies (React, Vite, etc.)
-├── vite.config.js                # Vite build config (manual chunks, dynamic imports)
+├── vite.config.js                # Vite build config (manual chunks, dynamic imports, mermaid scan exclude)
 ├── tailwind.config.js            # Tailwind CSS configuration
 ├── index.html                    # HTML entry point for Vite
 │
@@ -936,25 +974,28 @@ blueprintAI/
 │   ├── pages/
 │   │   ├── Landing.jsx           # Public marketing page
 │   │   ├── Login.jsx             # JWT login
-│   │   ├── Signup.jsx            # Registration
+│   │   ├── Signup.jsx            # Registration (Role selection: Admin / Dev / Viewer)
 │   │   ├── Pricing.jsx           # Coin plans + Razorpay integration
 │   │   ├── Onboarding.jsx        # Post-signup wizard
 │   │   ├── Dashboard.jsx         # Session list
 │   │   ├── InputScreen.jsx       # Requirement input + file upload
 │   │   ├── DiscoveryChat.jsx     # AI discovery conversation
 │   │   ├── GeneratingScreen.jsx  # Generation progress animation
-│   │   ├── ResultScreen.jsx      # Full blueprint output + edit + export
+│   │   ├── ResultScreen.jsx      # 7-tab deliverable hub + live prototype cockpit + edit + export
 │   │   ├── VersionHistory.jsx    # Version timeline + rollback
-│   │   └── Settings.jsx          # Profile + Team RBAC + preferences
+│   │   └── Settings.jsx          # Profile + Immutable RBAC card + preferences
 │   ├── components/
 │   │   ├── common/
 │   │   │   ├── MermaidDiagram.jsx          # Dynamic mermaid renderer
+│   │   │   ├── WorkingSolutionSandbox.jsx  # In-browser interactive sandbox
 │   │   │   └── CookieConsentBanner.jsx     # GDPR banner
 │   │   └── layout/
+│   │       ├── Navbar.jsx                  # Header with user role badge
+│   │       └── DashboardSidebar.jsx        # Sidebar navigation
 │   └── utils/
-│       ├── cookieUtils.js                  # JWT storage + RBAC helpers
-│       ├── dynamicBlueprintGenerator.js    # Export/render helpers
-│       └── i18n.js                         # i18n utilities
+│       ├── cookieUtils.js                  # JWT storage + RBAC helpers (least-privilege default)
+│       ├── dynamicBlueprintGenerator.js    # Dynamic synthesis & export helpers
+│       └── i18n.js                         # Multilingual translations (EN, HI, GU)
 │
 ├── backend/                      # Node.js Express backend
 │   └── src/
@@ -964,16 +1005,17 @@ blueprintAI/
 │       │   ├── authMiddleware.js # authenticateToken + requireRole + normalizeRole
 │       │   └── errorHandler.js  # Global error handler
 │       ├── controllers/
-│       │   ├── authController.js     # Register, login, profile, RBAC
-│       │   ├── sessionController.js  # Session CRUD + generation + versions
+│       │   ├── authController.js     # Register, login, profile, immutable RBAC
+│       │   ├── sessionController.js  # Session CRUD + generation + live prototype
 │       │   └── paymentController.js  # Razorpay orders, verify, deduct
 │       ├── models/
 │       │   ├── User.js               # User queries (findById, addCredits, deductCredit, updateRole)
 │       │   ├── Payment.js            # Payment queries (create, findByOrderId, markSuccess, markFailed)
-│       │   └── Session.js            # Session queries
+│       │   ├── Session.js            # Session queries
+│       │   └── SolutionArchitecture.js # Architecture & prototype model
 │       ├── routes/
 │       │   ├── auth.routes.js        # /api/auth/*
-│       │   ├── session.routes.js     # /api/sessions/*
+│       │   ├── session.routes.js     # /api/sessions/* (including /:id/prototype/live)
 │       │   ├── payment.routes.js     # /api/payment/*
 │       │   ├── workspace.routes.js   # /api/workspaces/*
 │       │   ├── export.routes.js      # /api/export/*
@@ -981,8 +1023,10 @@ blueprintAI/
 │       │   └── ai.routes.js          # /api/ai/*
 │       ├── services/
 │       │   └── ai/
-│       │       ├── compileAiClient.js  # HTTP client for Python AI at :8000
-│       │       └── estimation.js       # Regex parser for AI-generated estimate markdown
+│       │       ├── prototypeGenerator.js # Dual-Engine (Gemini + Groq) prototype & live HTML builder
+│       │       ├── wireframeGenerator.js # Dedicated Gemini AI Wireframe & UI layout generator
+│       │       ├── compileAiClient.js    # HTTP client for Python AI at :8000
+│       │       └── estimation.js         # Regex parser for AI-generated estimate markdown
 │       └── db/
 │           ├── connection.js           # MySQL connection pool
 │           ├── initDb.js               # DB initialisation runner
@@ -1014,9 +1058,13 @@ blueprintAI/
 
 ## 17. Environment Variables
 
-### Root `.env` (used by Node.js backend and Python service as fallback)
+### Root `.env` & Backend `.env` (`backend/.env`)
 
 ```env
+# Server
+PORT=5000
+NODE_ENV=development
+
 # Database
 DB_HOST=localhost
 DB_PORT=3306
@@ -1024,26 +1072,43 @@ DB_NAME=compile_db
 DB_USER=root
 DB_PASSWORD=your_mysql_password
 
-# JWT
+# JWT Authentication
 JWT_SECRET=your_jwt_secret_key
+JWT_EXPIRES_IN=10d
 
-# Gemini AI
+# Primary Multi-LLM Provider Selection (auto | gemini | openai | anthropic | groq | deepseek | ollama)
+LLM_PROVIDER=auto
+FALLBACK_TO_HEURISTICS=true
+
+# Google Gemini Primary Pool
 GEMINI_API_KEY=your_gemini_api_key
+GEMINI_API_KEYS=key1,key2,key3
 GEMINI_MODEL=gemini-3.8-flash
 
-# Razorpay
+# Dedicated AI Wireframe Synthesis Engine
+GEMINI_WIREFRAME_API_KEY=your_gemini_wireframe_key
+
+# High-Speed Backup Provider (Groq)
+GROQ_API_KEY=your_groq_api_key
+GROQ_MODEL=qwen/qwen3.8-27b
+
+# Product Prototype Round-Robin Dual AI Engine
+PROTOTYPE_GEMINI_KEY=your_prototype_gemini_key
+PROTOTYPE_GROQ_KEY=your_prototype_groq_key
+
+# Payment Gateway (Razorpay)
 RAZORPAY_KEY_ID=rzp_test_...
 RAZORPAY_KEY_SECRET=your_razorpay_secret
-
-# Server
-PORT=5000
 ```
 
 ### Python API `.env` (`Compile_AI/compile-ai/api/.env`)
 
 ```env
 GEMINI_API_KEY=your_gemini_api_key
+GEMINI_API_KEYS=key1,key2,key3
 GEMINI_MODEL=gemini-3.8-flash
+GROQ_API_KEY=your_groq_api_key
+GROQ_MODEL=qwen/qwen3.8-27b
 ```
 
 ---

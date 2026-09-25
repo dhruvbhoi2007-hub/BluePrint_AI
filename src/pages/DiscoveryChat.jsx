@@ -24,6 +24,173 @@ const FILE_ICON = 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14
 const EDIT_ICON = 'M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z';
 const MENU_ICON = 'M4 6h16M4 12h16M4 18h16';
 
+/* ─── Inline Markdown Formatter ─── */
+function formatInline(str) {
+  if (!str) return '';
+  return str
+    .replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-slate-900">$1</strong>')
+    .replace(/\*(.*?)\*/g, '<em class="italic">$1</em>')
+    .replace(/`(.*?)`/g, '<code class="bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded text-[11.5px] font-mono">$1</code>');
+}
+
+/* ─── Chat Markdown & Data Table Renderer ─── */
+function ChatMarkdownRenderer({ text }) {
+  if (!text) return null;
+
+  const lines = text.split('\n');
+  const elements = [];
+  let inTable = false;
+  let tableHeader = [];
+  let tableRows = [];
+  let inCodeBlock = false;
+  let codeBlockLines = [];
+
+  const flushTable = (key) => {
+    if (tableHeader.length > 0 || tableRows.length > 0) {
+      elements.push(
+        <div key={key} className="overflow-x-auto my-2.5 rounded-xl border border-slate-200/90 shadow-sm bg-white">
+          <table className="w-full text-left border-collapse text-[12px]">
+            {tableHeader.length > 0 && (
+              <thead>
+                <tr className="bg-slate-100/90 border-b border-slate-200">
+                  {tableHeader.map((h, i) => (
+                    <th key={i} className="px-3 py-2 font-bold text-slate-800" dangerouslySetInnerHTML={{ __html: formatInline(h) }} />
+                  ))}
+                </tr>
+              </thead>
+            )}
+            <tbody>
+              {tableRows.map((row, ri) => (
+                <tr key={ri} className={ri % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'}>
+                  {row.map((cell, ci) => (
+                    <td key={ci} className="px-3 py-2 border-t border-slate-100 text-slate-700" dangerouslySetInnerHTML={{ __html: formatInline(cell) }} />
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+      tableHeader = [];
+      tableRows = [];
+      inTable = false;
+    }
+  };
+
+  const flushCode = (key) => {
+    if (codeBlockLines.length > 0) {
+      elements.push(
+        <pre key={key} className="my-2 p-3 rounded-xl bg-slate-900 text-cyan-300 font-mono text-[12px] overflow-x-auto shadow-inner">
+          <code>{codeBlockLines.join('\n')}</code>
+        </pre>
+      );
+      codeBlockLines = [];
+      inCodeBlock = false;
+    }
+  };
+
+  for (let idx = 0; idx < lines.length; idx++) {
+    const rawLine = lines[idx];
+    const trimmed = rawLine.trim();
+
+    if (trimmed.startsWith('```')) {
+      if (inCodeBlock) {
+        flushCode(`code_${idx}`);
+      } else {
+        if (inTable) flushTable(`tbl_${idx}`);
+        inCodeBlock = true;
+      }
+      continue;
+    }
+
+    if (inCodeBlock) {
+      codeBlockLines.push(rawLine);
+      continue;
+    }
+
+    if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
+      const cells = trimmed
+        .slice(1, -1)
+        .split('|')
+        .map((c) => c.trim());
+
+      if (cells.every((c) => /^[-:]+$/.test(c))) {
+        continue;
+      }
+
+      if (!inTable) {
+        inTable = true;
+        tableHeader = cells;
+      } else {
+        tableRows.push(cells);
+      }
+      continue;
+    } else {
+      if (inTable) {
+        flushTable(`tbl_${idx}`);
+      }
+    }
+
+    if (!trimmed) {
+      elements.push(<div key={`sp_${idx}`} className="h-1.5" />);
+      continue;
+    }
+
+    if (trimmed.startsWith('### ')) {
+      elements.push(
+        <h4 key={`h3_${idx}`} className="text-[13.5px] font-extrabold text-slate-900 mt-2 mb-1">
+          {trimmed.replace(/^###\s+/, '')}
+        </h4>
+      );
+    } else if (trimmed.startsWith('## ')) {
+      elements.push(
+        <h3 key={`h2_${idx}`} className="text-[14.5px] font-extrabold text-indigo-700 mt-2.5 mb-1">
+          {trimmed.replace(/^##\s+/, '')}
+        </h3>
+      );
+    } else if (trimmed.startsWith('# ')) {
+      elements.push(
+        <h2 key={`h1_${idx}`} className="text-[15.5px] font-extrabold text-slate-900 mt-3 mb-1.5">
+          {trimmed.replace(/^#\s+/, '')}
+        </h2>
+      );
+    } else if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+      elements.push(
+        <div key={`li_${idx}`} className="flex items-start gap-2 pl-1.5 text-[13px] text-slate-700 leading-relaxed my-0.5">
+          <span className="text-indigo-500 font-bold shrink-0">•</span>
+          <span dangerouslySetInnerHTML={{ __html: formatInline(trimmed.replace(/^[-*]\s+/, '')) }} />
+        </div>
+      );
+    } else if (/^\d+\.\s/.test(trimmed)) {
+      const num = trimmed.match(/^(\d+\.)\s/)[1];
+      const rest = trimmed.replace(/^\d+\.\s+/, '');
+      elements.push(
+        <div key={`oli_${idx}`} className="flex items-start gap-2 pl-1.5 text-[13px] text-slate-700 leading-relaxed my-0.5">
+          <span className="text-indigo-600 font-bold shrink-0">{num}</span>
+          <span dangerouslySetInnerHTML={{ __html: formatInline(rest) }} />
+        </div>
+      );
+    } else {
+      elements.push(
+        <p key={`p_${idx}`} className="m-0 text-[13px] text-slate-700 leading-relaxed" dangerouslySetInnerHTML={{ __html: formatInline(trimmed) }} />
+      );
+    }
+  }
+
+  if (inTable) flushTable(`tbl_end`);
+  if (inCodeBlock) flushCode(`code_end`);
+
+  return <div className="space-y-1">{elements}</div>;
+}
+
+const QUICK_PROMPTS = [
+  { icon: '📊', label: 'Tech Stack & Architecture', prompt: 'Generate a recommended tech stack and high-level architecture with rationale for this initiative.' },
+  { icon: '📋', label: 'Functional Requirements', prompt: 'Generate the structured functional and non-functional requirements breakdown for this project.' },
+  { icon: '🗄️', label: 'Database Schema & Tables', prompt: 'Generate the recommended database entity schema, primary keys, and relationships for this system.' },
+  { icon: '⏱️', label: 'Timeline & Cost Estimate', prompt: 'Generate a realistic phase-by-phase project timeline in weeks and a 3-tier USD cost estimate for an MVP and enterprise build.' },
+  { icon: '🛡️', label: 'Security & Compliance', prompt: 'What security controls, data protections, and regulatory compliance standards (HIPAA, SOC 2, PCI-DSS) apply here?' },
+];
+
 export default function DiscoveryChat() {
   const { id: paramSessionId } = useParams();
   const navigate = useNavigate();
@@ -65,6 +232,7 @@ export default function DiscoveryChat() {
   const [answeringQaId, setAnsweringQaId] = useState(null);
   const [draftAnswers, setDraftAnswers] = useState({});
   const [savingAnswer, setSavingAnswer] = useState(false);
+  const [isGeneratingChat, setIsGeneratingChat] = useState(false);
 
   // Quick Starter Input for Empty State
   const [starterTitle, setStarterTitle] = useState('Enterprise Transformation Blueprint');
@@ -290,10 +458,10 @@ To produce an implementation-ready enterprise architecture and structured BRD, I
     }
   };
 
-  const handleSendMessage = async (e) => {
-    e.preventDefault();
-    const text = chatInput.trim();
-    if (!text || !activeSessionId) return;
+  const handleSendMessage = async (e, customPrompt) => {
+    if (e && e.preventDefault) e.preventDefault();
+    const text = (customPrompt || chatInput).trim();
+    if (!text || !activeSessionId || isGeneratingChat) return;
 
     const token = getStoredToken();
     if (!token) return;
@@ -306,6 +474,7 @@ To produce an implementation-ready enterprise architecture and structured BRD, I
     };
     setMessages(prev => [...prev, tempUserMsg]);
     setChatInput('');
+    setIsGeneratingChat(true);
 
     try {
       const res = await fetch(`http://localhost:5000/api/sessions/${activeSessionId}/messages`, {
@@ -335,6 +504,8 @@ To produce an implementation-ready enterprise architecture and structured BRD, I
       }
     } catch (err) {
       console.error('Error in message exchange:', err);
+    } finally {
+      setIsGeneratingChat(false);
     }
   };
 
@@ -647,12 +818,25 @@ To produce an implementation-ready enterprise architecture and structured BRD, I
                             {isAi ? <Icon d={BOT_ICON} size={16} color="#fff" /> : <Icon d={USER_ICON} size={16} color="#4f46e5" />}
                           </div>
 
-                          <div className={`max-w-[85%] sm:max-w-[82%] rounded-2xl px-4 py-3 text-[13.5px] leading-relaxed whitespace-pre-line shadow-[0_1px_4px_rgba(15,23,42,0.03)] border ${isAi ? 'bg-slate-50/90 border-slate-200/70 text-slate-700' : 'bg-indigo-50/90 border-indigo-200/70 text-slate-700'}`}>
-                            {m.text}
+                          <div className={`max-w-[85%] sm:max-w-[82%] rounded-2xl px-4 py-3 text-[13.5px] leading-relaxed shadow-[0_1px_4px_rgba(15,23,42,0.03)] border ${isAi ? 'bg-slate-50/90 border-slate-200/70 text-slate-800' : 'bg-indigo-50/90 border-indigo-200/70 text-slate-700'}`}>
+                            {isAi ? <ChatMarkdownRenderer text={m.text} /> : <div className="whitespace-pre-line">{m.text}</div>}
                           </div>
                         </div>
                       );
                     })}
+
+                    {/* AI Generating Thinking Indicator */}
+                    {isGeneratingChat && (
+                      <div className="flex gap-3 items-start flex-row animate-pulse">
+                        <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-gradient-to-br from-indigo-500 to-cyan-500">
+                          <Icon d={BOT_ICON} size={16} color="#fff" />
+                        </div>
+                        <div className="rounded-2xl px-4 py-3 text-[13px] bg-indigo-50/80 border border-indigo-200/90 text-indigo-700 flex items-center gap-2.5 shadow-sm">
+                          <div className="w-4 h-4 rounded-full border-2 border-indigo-600 border-t-transparent animate-spin shrink-0" />
+                          <span className="font-medium">AI Consultant is searching dataset and synthesizing technical specifications...</span>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Question Cards */}
                     {questions.length > 0 && (
@@ -747,22 +931,42 @@ To produce an implementation-ready enterprise architecture and structured BRD, I
                     <div ref={chatEndRef} />
                   </div>
 
+                  {/* Quick Data Action Chips */}
+                  <div className="px-3.5 py-2 bg-slate-50/80 border-t border-slate-200/70 overflow-x-auto flex items-center gap-1.5 no-scrollbar">
+                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider shrink-0 flex items-center gap-1">
+                      <Icon d={SPARK_ICON} size={12} color="#6366f1" /> Ask Data:
+                    </span>
+                    {QUICK_PROMPTS.map((qp, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => handleSendMessage(null, qp.prompt)}
+                        disabled={isGeneratingChat}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white border border-slate-200/90 text-[11.5px] font-semibold text-slate-700 hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50/50 transition-all shrink-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_1px_2px_rgba(0,0,0,0.03)]"
+                      >
+                        <span>{qp.icon}</span>
+                        <span>{qp.label}</span>
+                      </button>
+                    ))}
+                  </div>
+
                   {/* Freeform Message Input Bar */}
                   <form
-                    onSubmit={handleSendMessage}
+                    onSubmit={(e) => handleSendMessage(e)}
                     className="flex items-center gap-2.5 px-4 sm:px-4.5 py-3 border-t border-slate-200/70 bg-white/95"
                   >
                     <input
                       type="text"
-                      placeholder="Ask your AI Consultant questions (e.g. 'Can we use Azure Functions for ingestion?')..."
+                      placeholder={isGeneratingChat ? "Consultant is synthesizing technical data..." : "Ask your AI Consultant questions (e.g. 'Generate tech stack', 'Database schema', 'MVP cost')..."}
                       value={chatInput}
                       onChange={e => setChatInput(e.target.value)}
-                      className="flex-1 min-w-0 px-4 py-2.5 rounded-xl border-[1.5px] border-slate-200 text-[13.5px] text-slate-900 outline-none bg-slate-50/80 transition-colors focus:border-indigo-400"
+                      disabled={isGeneratingChat}
+                      className="flex-1 min-w-0 px-4 py-2.5 rounded-xl border-[1.5px] border-slate-200 text-[13.5px] text-slate-900 outline-none bg-slate-50/80 transition-colors focus:border-indigo-400 disabled:opacity-60"
                     />
                     <button
                       type="submit"
-                      disabled={!chatInput.trim()}
-                      className={`w-10 h-10 shrink-0 rounded-xl border-none flex items-center justify-center transition-all duration-200 ${chatInput.trim() ? 'bg-gradient-to-br from-indigo-500 to-cyan-500 text-white cursor-pointer hover:-translate-y-0.5' : 'bg-slate-100 text-slate-400 cursor-default'}`}
+                      disabled={!chatInput.trim() || isGeneratingChat}
+                      className={`w-10 h-10 shrink-0 rounded-xl border-none flex items-center justify-center transition-all duration-200 ${chatInput.trim() && !isGeneratingChat ? 'bg-gradient-to-br from-indigo-500 to-cyan-500 text-white cursor-pointer hover:-translate-y-0.5' : 'bg-slate-100 text-slate-400 cursor-default'}`}
                     >
                       <Icon d={SEND_ICON} size={16} />
                     </button>

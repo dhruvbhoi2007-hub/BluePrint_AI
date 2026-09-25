@@ -139,8 +139,8 @@ export default function Navbar() {
     { code: 'en', label: '🇬🇧 EN' },
     { code: 'hi', label: '🇮🇳 हिन्दी' },
     { code: 'gu', label: '🇮🇳 ગુજરાતી' },
-    { code: 'es', label: '🇪🇸 ES' },
-    { code: 'fr', label: '🇫🇷 FR' },
+    // { code: 'es', label: '🇪🇸 ES' },
+    // { code: 'fr', label: '🇫🇷 FR' },
   ];
 
   return (

@@ -79,8 +79,8 @@ app.listen(PORT, async () => {
     console.log(`✅ Compile AI Python model server is active on http://127.0.0.1:8000`);
   } else {
     console.log(`⚡ Launching Compile AI Python model server on http://127.0.0.1:8000...`);
-    const pythonApiDir = path.resolve(__dirname, '../../Compile AI/compile-ai/api');
-    const pythonProcess = spawn('python', ['-m', 'uvicorn', 'main:app', '--host', '127.0.0.1', '--port', '8000'], {
+    const pythonApiDir = path.resolve(__dirname, '../../Compile_AI/compile-ai/api');
+    const pythonProcess = spawn('python', ['-m', 'uvicorn', 'main:app', '--host', '127.0.0.1', '--port', '8000', '--reload'], {
       cwd: pythonApiDir,
       shell: true,
       stdio: 'inherit',

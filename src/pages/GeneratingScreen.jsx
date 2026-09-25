@@ -224,14 +224,14 @@ export default function GeneratingScreen() {
                 </div>
               </div>
               <div className="w-px h-6.5 bg-slate-200" />
-              <div>
+              {/* <div>
                 <div className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.6px]">
                   Elapsed
                 </div>
                 <div className={`text-[15px] font-extrabold font-mono ${elapsedSeconds > 25 ? 'text-amber-500' : 'text-slate-900'}`}>
                   {elapsedSeconds}s
                 </div>
-              </div>
+              </div> */}
             </div>
           </div>
 

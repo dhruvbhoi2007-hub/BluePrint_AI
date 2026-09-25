@@ -6,25 +6,25 @@ import { getStoredToken, getStoredUser, setStoredUser, clearAuthCookies, setCook
 
 /* ─── Unified Theme Palette ─── */
 const C = {
-  bg:         '#f6f7fb',
-  surface:    '#ffffff',
+  bg: '#f6f7fb',
+  surface: '#ffffff',
   surfaceAlt: '#f8fafc',
-  border:     '#e2e8f0',
-  borderMed:  '#cbd5e1',
-  primary:    '#6366f1',
-  primaryDk:  '#4f46e5',
-  primaryLt:  '#eef2ff',
-  accent:     '#06b6d4',
-  accentLt:   '#ecfeff',
-  success:    '#10b981',
-  successLt:  '#d1fae5',
-  warn:       '#f59e0b',
-  warnLt:     '#fef3c7',
-  textH:      '#0f172a',
-  textB:      '#334155',
-  textM:      '#64748b',
-  textSub:    '#94a3b8',
-  grad:       'linear-gradient(135deg, #6366f1 0%, #06b6d4 100%)',
+  border: '#e2e8f0',
+  borderMed: '#cbd5e1',
+  primary: '#6366f1',
+  primaryDk: '#4f46e5',
+  primaryLt: '#eef2ff',
+  accent: '#06b6d4',
+  accentLt: '#ecfeff',
+  success: '#10b981',
+  successLt: '#d1fae5',
+  warn: '#f59e0b',
+  warnLt: '#fef3c7',
+  textH: '#0f172a',
+  textB: '#334155',
+  textM: '#64748b',
+  textSub: '#94a3b8',
+  grad: 'linear-gradient(135deg, #6366f1 0%, #06b6d4 100%)',
 };
 
 /* ─── SVG Icons ─── */
@@ -37,14 +37,14 @@ function Icon({ d, size = 18, color = 'currentColor', style = {} }) {
   );
 }
 
-const USER_ICON     = 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z';
-const TEAM_ICON     = 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm14 10v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75';
-const SPARK_ICON    = 'M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83';
-const KEY_ICON      = 'M21 2l-2 2m-2-2l2 2m7 0a5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5 5 5 0 0 1 5 5zm-5 5l-7 7-4-4L2 15l4 4 7-7';
-const SHIELD_ICON   = 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z';
-const SERVER_ICON   = 'M2 2h20v8H2V2zm0 12h20v8H2v-8zm4-8h.01M6 18h.01';
-const CHECK_ICON    = 'M20 6L9 17l-5-5';
-const MENU_ICON     = 'M4 6h16M4 12h16M4 18h16';
+const USER_ICON = 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z';
+const TEAM_ICON = 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm14 10v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75';
+const SPARK_ICON = 'M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83';
+const KEY_ICON = 'M21 2l-2 2m-2-2l2 2m7 0a5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5 5 5 0 0 1 5 5zm-5 5l-7 7-4-4L2 15l4 4 7-7';
+const SHIELD_ICON = 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z';
+const SERVER_ICON = 'M2 2h20v8H2V2zm0 12h20v8H2v-8zm4-8h.01M6 18h.01';
+const CHECK_ICON = 'M20 6L9 17l-5-5';
+const MENU_ICON = 'M4 6h16M4 12h16M4 18h16';
 
 export default function Settings() {
   const navigate = useNavigate();
@@ -160,7 +160,7 @@ export default function Settings() {
       if (savedGemini) setGeminiKey(savedGemini);
       const savedAnthropic = localStorage.getItem('compile_anthropic_key');
       if (savedAnthropic) setAnthropicKey(savedAnthropic);
-    } catch (e) {}
+    } catch (e) { }
 
     // Load session count
     fetch('http://localhost:5000/api/sessions', {
@@ -170,7 +170,7 @@ export default function Settings() {
       .then(data => {
         if (data.sessions) setAllSessions(data.sessions);
       })
-      .catch(() => {});
+      .catch(() => { });
 
     return () => window.removeEventListener('role_changed', onRoleChanged);
   }, [navigate]);
@@ -435,8 +435,8 @@ export default function Settings() {
             {[
               { id: 'profile', label: 'Account & Organization', icon: USER_ICON },
               { id: 'team', label: 'Team & RBAC Roles', icon: TEAM_ICON },
-              { id: 'ai', label: 'AI Reasoning Engine', icon: SPARK_ICON },
-              { id: 'keys', label: 'API Keys & Integrations', icon: KEY_ICON },
+              // { id: 'ai', label: 'AI Reasoning Engine', icon: SPARK_ICON },
+              // { id: 'keys', label: 'API Keys & Integrations', icon: KEY_ICON },
               { id: 'security', label: 'Security & Privacy', icon: SHIELD_ICON },
               { id: 'system', label: 'System & Database Health', icon: SERVER_ICON },
             ].map(tab => {

@@ -54,7 +54,7 @@ const STATS_META = [
   { key: 'total', label: 'Total Blueprints', icon: LAYERS, grad: 'from-indigo-500 to-indigo-400', glow: 'shadow-[0_4px_14px_rgba(99,102,241,0.35)]' },
   { key: 'completed', label: 'Completed & Ready', icon: CHECK, grad: 'from-emerald-500 to-emerald-400', glow: 'shadow-[0_4px_14px_rgba(16,185,129,0.35)]' },
   { key: 'discovery', label: 'In Discovery Q&A', icon: CLOCK, grad: 'from-amber-500 to-amber-400', glow: 'shadow-[0_4px_14px_rgba(245,158,11,0.35)]' },
-  { key: 'avgtime', label: 'Avg Blueprint Time', icon: ZAP, grad: 'from-cyan-500 to-sky-400', glow: 'shadow-[0_4px_14px_rgba(6,182,212,0.35)]' },
+  // { key: 'avgtime', label: 'Avg Blueprint Time', icon: ZAP, grad: 'from-cyan-500 to-sky-400', glow: 'shadow-[0_4px_14px_rgba(6,182,212,0.35)]' },
 ];
 
 function statusConfig(status) {
@@ -255,7 +255,7 @@ export default function Dashboard() {
     total: sessions.length,
     completed: completedCount,
     discovery: inProgressCount,
-    avgtime: completedCount > 0 ? '< 30s' : '—',
+    // avgtime: completedCount > 0 ? '< 30s' : '—',
   };
 
   const isOwner = user?.role === 'owner';
@@ -368,7 +368,7 @@ export default function Dashboard() {
               Have a raw SOP, meeting transcript, or challenge?
             </h2>
             <p className="m-0 text-[13.5px] text-slate-500 leading-relaxed">
-              Compile asks up to 5 clarifying questions, discovers process gaps, and generates your complete implementation blueprint in under 30 seconds.
+              Compile asks up to 5 clarifying questions, discovers process gaps, and generates your complete implementation blueprint.
             </p>
           </div>
           <button

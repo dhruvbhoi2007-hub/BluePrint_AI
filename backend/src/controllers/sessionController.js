@@ -17,6 +17,7 @@ import { solutionArchitecture } from '../services/ai/solutionArchitecture.js';
 import { estimation } from '../services/ai/estimation.js';
 import { llmClient } from '../services/ai/llmClient.js';
 import { inputAnalyzer } from '../services/ai/inputAnalyzer.js';
+import { compileAiClient } from '../services/ai/compileAiClient.js';
 
 export const sessionController = {
   // 1. List user sessions
@@ -404,7 +405,7 @@ export const sessionController = {
     }
   },
 
-  // 10. Post message & generate AI response with database memory storage
+  // 10. Post message & generate rich data / AI consultation response with database memory storage
   async postSessionMessage(req, res, next) {
     try {
       const { id: sessionId } = req.params;
@@ -421,48 +422,142 @@ export const sessionController = {
         messageText: text.trim(),
       });
 
-      // 2. Load transformation context for grounded AI response
-      const [context, docs, qas] = await Promise.all([
+      // 2. Load transformation context for grounded AI data generation
+      const [session, context, docs, qas, pastMessages] = await Promise.all([
+        SessionModel.findById(sessionId),
         BusinessContextModel.findBySessionId(sessionId),
         InputDocumentModel.findBySessionId(sessionId),
         DiscoveryQaModel.findBySessionId(sessionId),
+        SessionMessageModel.findBySessionId(sessionId),
       ]);
 
-      const systemPrompt = `You are the Lead Enterprise Solution Architect & AI Business Consultant for Chaos2Commit 2026.
-You are conducting a digital transformation discovery consultation with a client.
-Organizational Context:
-- Domain/Goals: ${context?.goals || 'Enterprise digital transformation'}
-- Constraints: ${context?.constraints_text || 'Standard cloud enterprise architecture'}
-- Uploaded Materials: ${docs.map(d => d.file_name).join(', ') || 'Initial business brief'}
-- Answered Questions: ${qas.filter(q => q.answer).map(q => `Q: ${q.question} -> A: ${q.answer}`).join('; ')}
-
-Provide direct, consultative, professional architectural advice. Address the user's inquiry, recommend best practices (especially Microsoft/Azure ecosystem where applicable), and identify integration or security considerations.`;
-
-      let aiResponseText = await llmClient.complete({
-        systemPrompt,
-        userPrompt: text.trim(),
+      const discoveryAnswers = {};
+      (qas || []).forEach((q) => {
+        if (q.answer && q.answer.trim()) {
+          discoveryAnswers[q.question] = q.answer.trim();
+        }
       });
 
+      const conversationHistory = (pastMessages || []).slice(-8).map((m) => ({
+        sender: m.sender,
+        text: m.message_text || m.messageText || '',
+      }));
+
+      const rawInputText = (docs || []).map((d) => d.parsed_text).filter(Boolean).join('\n\n') || context?.raw_summary || '';
+
+      // 3. Primary AI Generation: Call Python Compile AI Engine with Gemini & 105,500-row Dataset AFC
+      let aiResponseText = null;
+      try {
+        const chatResult = await compileAiClient.consultantChat({
+          message: text.trim(),
+          sessionTitle: session?.title || 'Enterprise Transformation Blueprint',
+          rawInputText,
+          contextGoals: context?.goals || '',
+          contextConstraints: context?.constraints_text || '',
+          discoveryAnswers,
+          conversationHistory,
+          userLanguage: 'English',
+        });
+        if (chatResult && chatResult.reply) {
+          aiResponseText = chatResult.reply;
+        }
+      } catch (compileErr) {
+        console.warn('[DiscoveryChat] Compile AI Python chat error, trying multi-LLM fallback:', compileErr.message);
+      }
+
+      // 4. Secondary Fallback: Multi-LLM Client (Gemini REST)
       if (!aiResponseText) {
-        // Intelligent heuristic consultant response if live LLM API is not configured
-        const lower = text.toLowerCase();
-        if (lower.includes('azure') || lower.includes('microsoft')) {
-          aiResponseText = 'Regarding the **Microsoft Ecosystem**: I am aligning the architecture with Azure App Services, Azure Functions, Azure Cosmos DB / SQL, and Azure OpenAI Service with Azure AD (Entra ID) single sign-on.';
-        } else if (lower.includes('timeline') || lower.includes('cost') || lower.includes('effort')) {
-          aiResponseText = 'Based on standard enterprise transformation velocity, our AI Planning Engine will calculate phase-by-phase story points, team allocation (Architect, Senior Fullstack, DevOps, QA), and a 3-tier cost band upon compilation.';
-        } else if (lower.includes('security') || lower.includes('compliance')) {
-          aiResponseText = 'Enterprise security compliance is locked in: role-based access control (RBAC), TLS 1.3 in-transit, AES-256 at-rest encryption, and automated audit logging are built into the High-Level Design (HLD).';
-        } else {
-          aiResponseText = `Noted. I have updated the session's active business context in MySQL with: "${text.trim()}". This will directly inform the High-Level Design (HLD) and the Business Requirements Document (BRD).`;
+        const systemPrompt = `You are Compile AI, an elite Principal Enterprise Solution Architect and Senior Business Analyst conducting an interactive discovery consultation.
+Initiative: "${session?.title || 'Transformation Blueprint'}"
+Context:
+- Goals: ${context?.goals || 'Enterprise digital transformation'}
+- Constraints: ${context?.constraints_text || 'Standard cloud enterprise architecture'}
+- Documents: ${(docs || []).map((d) => d.file_name).join(', ') || 'Initial brief'}
+- Answered Discovery: ${Object.entries(discoveryAnswers).map(([q, a]) => `Q: ${q} -> A: ${a}`).join('; ')}
+
+Instructions:
+The client is asking for specific advice, data, architecture, requirements, or analysis outside the fixed discovery questions.
+Generate authoritative, structured, concrete data:
+- Use Markdown tables for comparisons, timelines, and schemas
+- Provide exact technology choices, functional requirements, or phase breakdowns
+- Be precise, technical, and actionable.`;
+
+        try {
+          aiResponseText = await llmClient.complete({
+            systemPrompt,
+            userPrompt: text.trim(),
+          });
+        } catch (llmErr) {
+          console.warn('[DiscoveryChat] llmClient fallback error:', llmErr.message);
         }
       }
 
-      // 3. Save AI response to MySQL database memory
+      // 5. Intelligent Heuristic Fallback (Ensures data is ALWAYS returned even offline)
+      if (!aiResponseText) {
+        const lower = text.toLowerCase();
+        if (lower.includes('azure') || lower.includes('microsoft')) {
+          aiResponseText = `### Recommended Microsoft Azure Solution Architecture
+
+| Component | Azure Service | Rationale |
+|---|---|---|
+| **Frontend App** | Azure Static Web Apps / Container Apps | Global edge distribution, integrated CI/CD |
+| **API Backend** | Azure App Service (Linux) / Azure Functions | Microservices architecture with auto-scaling |
+| **Primary Data** | Azure Cosmos DB / Azure SQL Database | High availability, multi-region replication |
+| **Identity & Access** | Microsoft Entra ID (Azure AD) | Enterprise SSO, MFA, conditional access policies |
+| **Monitoring** | Azure Application Insights | Distributed tracing, APM, telemetry |`;
+        } else if (lower.includes('timeline') || lower.includes('cost') || lower.includes('effort') || lower.includes('price')) {
+          aiResponseText = `### Project Timeline & Cost Band Estimate
+
+| Phase | Timeline | Primary Objective |
+|---|---|---|
+| **Phase 1: Discovery & Architecture** | 2 Weeks | BRD, system topology, security baseline |
+| **Phase 2: Core Engineering** | 6–8 Weeks | Full-stack APIs, database schema, data models |
+| **Phase 3: Integration & Testing** | 2–3 Weeks | QA, security penetration tests, compliance check |
+| **Phase 4: Deployment & Pilot** | 2 Weeks | Production release, CI/CD, telemetry |
+
+**Estimated Cost Band**:
+- **MVP Baseline**: $25,000 – $45,000 USD
+- **Production Enterprise**: $55,000 – $95,000 USD`;
+        } else if (lower.includes('security') || lower.includes('compliance')) {
+          aiResponseText = `### Security Controls & Compliance Architecture
+
+- **Data Protection**: TLS 1.3 encryption in-transit and AES-256 at-rest encryption.
+- **Identity & Authorization**: Role-Based Access Control (RBAC) with scoped tokens.
+- **Compliance Alignment**: SOC 2 Type II audit logging, ISO 27001 baseline, and GDPR data residency controls.
+- **Audit Trails**: Immutable event ledger tracking all CRUD operations.`;
+        } else {
+          aiResponseText = `### Architectural Advisory for "${text.trim()}"
+
+1. **Functional Impact**: This requirement will be integrated into the core solution scope, establishing dedicated microservices and API endpoints.
+2. **Data & Schema**: An entity model will be provisioned in the primary database with foreign key relationships and index optimization.
+3. **Delivery Alignment**: We have updated the transformation context so that this specification is incorporated into the Business Requirements Document (BRD) and High-Level Design (HLD).`;
+        }
+      }
+
+      // 6. Save AI response to MySQL database memory
       const aiMessage = await SessionMessageModel.create({
         sessionId,
         sender: 'ai',
         messageText: aiResponseText,
       });
+
+      // 7. Sync new architectural constraints into MySQL business context
+      try {
+        if (context) {
+          const existingConstraints = context.constraints_text || '';
+          if (!existingConstraints.includes(text.trim().substring(0, 30))) {
+            const updatedConstraints = existingConstraints
+              ? `${existingConstraints}\n- Chat input: ${text.trim()}`
+              : `Chat input: ${text.trim()}`;
+            await BusinessContextModel.upsert({
+              sessionId,
+              constraints_text: updatedConstraints.substring(0, 4000),
+            });
+          }
+        }
+      } catch (ctxErr) {
+        console.warn('[DiscoveryChat] Context sync notice:', ctxErr.message);
+      }
 
       res.json({
         success: true,

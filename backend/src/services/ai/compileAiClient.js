@@ -49,6 +49,37 @@ export const compileAiClient = {
     return await res.json();
   },
 
+  async consultantChat({
+    message,
+    sessionTitle = '',
+    rawInputText = '',
+    contextGoals = '',
+    contextConstraints = '',
+    discoveryAnswers = {},
+    conversationHistory = [],
+    userLanguage = 'English',
+  }) {
+    const res = await fetch(`${this.baseUrl}/consultant/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message,
+        session_title: sessionTitle,
+        raw_input_text: rawInputText,
+        context_goals: contextGoals,
+        context_constraints: contextConstraints,
+        discovery_answers: discoveryAnswers,
+        conversation_history: conversationHistory,
+        user_language: userLanguage,
+      }),
+    });
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Compile AI Consultant Chat Error [${res.status}]: ${errText}`);
+    }
+    return await res.json();
+  },
+
   async generate(rawInputText, discoveryAnswers = {}, section = 'all', userLanguage = 'English') {
     const res = await fetch(`${this.baseUrl}/consultant/generate`, {
       method: 'POST',

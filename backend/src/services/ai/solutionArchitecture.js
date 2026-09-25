@@ -1,5 +1,7 @@
 import { compileAiClient } from './compileAiClient.js';
 import { inputAnalyzer } from './inputAnalyzer.js';
+import { wireframeGenerator } from './wireframeGenerator.js';
+import { prototypeGenerator } from './prototypeGenerator.js';
 
 /**
  * Domain-Adaptive Architecture & Database Schema Profiles
@@ -534,7 +536,7 @@ function detectDomain(text = '') {
 }
 
 export const solutionArchitecture = {
-  async generateArchitecture({ brd = {}, context = {}, rawInput = '', sessionTitle = '' }) {
+  async generateArchitecture({ brd = {}, context = {}, rawInput = '', sessionTitle = '', userLanguage = 'English' }) {
     const analysis = await inputAnalyzer.analyze(rawInput || brd.objectives || '', context);
     const domainProfile = detectDomain(`${sessionTitle} ${rawInput} ${brd.objectives || ''} ${context?.industry || ''}`);
 
@@ -542,13 +544,41 @@ export const solutionArchitecture = {
 
     try {
       if (await compileAiClient.isHealthy()) {
-        const sections = await compileAiClient.generate(rawInput || brd.objectives || '', {}, 'architecture');
+        const sections = await compileAiClient.generate(rawInput || brd.objectives || '', {}, 'architecture', userLanguage);
         if (Array.isArray(sections) && sections.length > 0 && sections[0].content) {
           hldSummaryContent = sections[0].content;
         }
       }
     } catch (err) {
       console.warn('[SolutionArchitecture] Compile AI server architecture generation fallback:', err.message);
+    }
+
+    // Generate high-fidelity AI wireframe screens & UI components using dedicated Gemini API key
+    let wireframes = null;
+    try {
+      wireframes = await wireframeGenerator.generateWireframes({
+        rawInput: rawInput || brd.objectives || '',
+        sessionTitle,
+        context,
+        userLanguage,
+      });
+    } catch (wfErr) {
+      console.warn('[SolutionArchitecture] Dedicated Gemini wireframe generation fallback:', wfErr.message);
+      wireframes = wireframeGenerator.getAdaptiveFallbackWireframes(sessionTitle, rawInput, userLanguage);
+    }
+
+    // Generate working product prototype using Round-Robin Dual AI Engine (Gemini & Groq)
+    let prototype = null;
+    try {
+      prototype = await prototypeGenerator.generatePrototype({
+        rawInput: rawInput || brd.objectives || '',
+        sessionTitle,
+        context,
+        userLanguage,
+      });
+    } catch (protoErr) {
+      console.warn('[SolutionArchitecture] Round-robin prototype generation fallback:', protoErr.message);
+      prototype = prototypeGenerator.getAdaptiveFallbackPrototype(sessionTitle, rawInput, userLanguage);
     }
 
     return {
@@ -563,7 +593,9 @@ export const solutionArchitecture = {
       },
       apiSpecs: {
         endpoints: domainProfile.apiEndpoints
-      }
+      },
+      wireframes,
+      prototype
     };
   }
 };

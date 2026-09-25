@@ -246,7 +246,9 @@ export default function DashboardSidebar({
 
   const userInitial = user?.name ? user.name.charAt(0).toUpperCase() : (user?.company ? user.company.charAt(0).toUpperCase() : 'C');
   const orgName = user?.company || user?.company_name || 'Compile Workspace';
-  const roleTitle = user?.role === 'owner' ? 'Owner' : 'Member';
+  const currentRole = (user?.role || 'developer').toLowerCase();
+  const normalizedRole = currentRole === 'owner' || currentRole === 'admin' ? 'admin' : (currentRole === 'viewer' ? 'viewer' : 'developer');
+  const roleTitle = normalizedRole.charAt(0).toUpperCase() + normalizedRole.slice(1);
 
   /* ─── Render Sidebar Inner Content ───
      variant "desktop" respects the real (possibly auto-collapsed) isCollapsed
@@ -271,7 +273,7 @@ export default function DashboardSidebar({
             <div
               className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-cyan-500 text-white font-extrabold text-[15px] flex items-center justify-center shrink-0 cursor-pointer shadow-[0_0_0_2px_rgba(99,102,241,0.18),0_4px_14px_rgba(99,102,241,0.35)] transition-all duration-200 hover:scale-105 hover:shadow-[0_0_0_3px_rgba(99,102,241,0.28),0_6px_18px_rgba(99,102,241,0.45)]"
               onClick={() => { navigate('/settings'); if (isMobile && setMobileOpen) setMobileOpen(false); }}
-              title={collapsed ? `${orgName} (${roleTitle})` : undefined}
+              title={collapsed ? `${orgName} (${roleTitle} · ID: ${user?.id || 'N/A'})` : undefined}
             >
               {userInitial}
             </div>
@@ -283,15 +285,20 @@ export default function DashboardSidebar({
                 </div>
                 <div className="flex items-center gap-1.5 mt-1">
                   <span
-                    className={`text-[9.5px] font-bold px-1.5 py-0.5 rounded-md tracking-[0.3px] border ${user?.role === 'owner'
-                      ? 'text-amber-700 bg-amber-50 border-amber-200'
-                      : 'text-sky-700 bg-sky-50 border-sky-200'
+                    className={`text-[9.5px] font-bold px-1.5 py-0.5 rounded-md tracking-[0.3px] border uppercase ${normalizedRole === 'admin'
+                      ? 'text-amber-800 bg-amber-50 border-amber-200'
+                      : normalizedRole === 'developer'
+                        ? 'text-emerald-800 bg-emerald-50 border-emerald-200'
+                        : 'text-slate-700 bg-slate-100 border-slate-200'
                       }`}
                   >
-                    {user?.role === 'owner' ? '★ Owner' : 'Member'}
+                    {normalizedRole}
                   </span>
-                  <span className="text-[11px] text-slate-400 overflow-hidden text-ellipsis whitespace-nowrap">
-                    {user?.name ? user.name.split(' ')[0] : 'Architect'}
+                  <span
+                    className="text-[10px] text-slate-500 font-mono overflow-hidden text-ellipsis whitespace-nowrap"
+                    title={`Role ${normalizedRole.toUpperCase()} belongs to User ID: ${user?.id || 'N/A'}`}
+                  >
+                    ID: {user?.id ? user.id.slice(0, 8) : 'guest'}
                   </span>
                 </div>
               </div>

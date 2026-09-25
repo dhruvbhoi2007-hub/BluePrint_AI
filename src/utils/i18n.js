@@ -45,14 +45,14 @@ export const TRANSLATIONS = {
       viewerDesc: 'Read-only access to blueprints and diagrams. Cannot edit code or deploy.',
     },
     rbac: {
-      viewerNotice: 'You are viewing in Read-Only Mode. Switch to Developer or Admin to create or edit blueprints.',
+      viewerNotice: 'You are viewing in Read-Only Mode. Blueprints and diagrams are read-only for your assigned role.',
       deployDeniedTitle: 'Production Deployment Restricted',
       deployDeniedMsg: 'Deploying live solutions to Vercel and Render requires Admin privileges. As a Viewer or Developer, you can test the prototype in the in-browser sandbox.',
       editDeniedTitle: 'Code Customization Restricted',
       editDeniedMsg: 'Code editing and natural language customization are disabled for Viewer role.',
       approveDeniedTitle: 'Approval Gate Restricted',
       approveDeniedMsg: 'Sign-off and stakeholder blueprint approval requires Developer or Admin role.',
-      upgradeRole: 'Switch Role to Admin',
+      upgradeRole: 'Role: Permanent & Immutable',
     },
 
     // Landing Page
@@ -224,14 +224,14 @@ export const TRANSLATIONS = {
       viewerDesc: 'केवल ब्लूप्रिंट और आरेख देख सकते हैं। कोड संपादित या डिप्लॉय नहीं कर सकते।',
     },
     rbac: {
-      viewerNotice: 'आप केवल देखने योग्य मोड में हैं। ब्लूप्रिंट बनाने या संपादित करने के लिए डेवलपर या एडमिन पर स्विच करें।',
+      viewerNotice: 'आप केवल देखने योग्य मोड में हैं। ब्लूप्रिंट और आरेख आपकी निर्दिष्ट भूमिका के लिए केवल पढ़ने योग्य हैं।',
       deployDeniedTitle: 'प्रोडक्शन डिप्लॉयमेंट प्रतिबंधित है',
       deployDeniedMsg: 'लाइव समाधान को वर्सेल या रेंडर पर डिप्लॉय करने के लिए एडमिन अनुमतियों की आवश्यकता है। दर्शक या डेवलपर के रूप में आप इन-ब्राउज़र सैंडबॉक्स में परीक्षण कर सकते हैं।',
       editDeniedTitle: 'कोड संपादन प्रतिबंधित है',
       editDeniedMsg: 'दर्शक (Viewer) भूमिका के लिए कोड संपादन और भाषा कस्टमाइज़ेशन अक्षम है।',
       approveDeniedTitle: 'अनुमोदन गेट प्रतिबंधित है',
       approveDeniedMsg: 'ब्लूप्रिंट अनुमोदन के लिए डेवलपर या एडमिन भूमिका की आवश्यकता होती है।',
-      upgradeRole: 'एडमिन भूमिका पर स्विच करें',
+      upgradeRole: 'भूमिका: स्थायी एवं अपरिवर्तनीय',
     },
 
     // Landing Page
@@ -403,14 +403,14 @@ export const TRANSLATIONS = {
       viewerDesc: 'ફક્ત બ્લુપ્રિન્ટ અને ડાયાગ્રામ જોઈ શકે છે. કોડ એડિટ કે ડિપ્લોય કરી શકાતો નથી.',
     },
     rbac: {
-      viewerNotice: 'તમે રીડ-ઓન્લી મોડમાં છો. બ્લુપ્રિન્ટ બનાવવા અથવા એડિટ કરવા માટે ડેવલપર અથવા એડમિન પર સ્વિચ કરો.',
+      viewerNotice: 'તમે રીડ-ઓન્લી મોડમાં છો. બ્લુપ્રિન્ટ અને આકૃતિઓ તમારા સોંપેલ રોલ માટે ફક્ત વાંચવા યોગ્ય છે.',
       deployDeniedTitle: 'પ્રોડક્શન ડિપ્લોયમેન્ટ પ્રતિબંધિત છે',
       deployDeniedMsg: 'Vercel અથવા Render પર લાઇવ ડિપ્લોય કરવા માટે એડમિન પરવાનગી જરૂરી છે. દર્શક કે ડેવલપર તરીકે તમે બ્રાઉઝર સેન્ડબોક્સમાં ટેસ્ટ કરી શકો છો.',
       editDeniedTitle: 'કોડ એડિટ પ્રતિબંધિત છે',
       editDeniedMsg: 'દર્શક (Viewer) રોલ માટે કોડ એડિટિંગ અને કસ્ટમાઇઝેશન અક્ષમ છે.',
       approveDeniedTitle: 'મંજૂરી પ્રતિબંધિત છે',
       approveDeniedMsg: 'બ્લુપ્રિન્ટ મંજૂર કરવા માટે ડેવલપર અથવા એડમિન રોલ હોવો જરૂરી છે.',
-      upgradeRole: 'એડમિન રોલ પર સ્વિચ કરો',
+      upgradeRole: 'રોલ: કાયમી અને અપરિવર્તનશીલ',
     },
 
     // Landing Page

@@ -48,5 +48,6 @@ export default defineConfig({
   // Pre-bundle key deps for faster dev server start
   optimizeDeps: {
     include: ['react', 'react-dom', 'react-router-dom'],
+    exclude: ['mermaid'],
   },
 });

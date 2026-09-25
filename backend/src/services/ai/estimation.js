@@ -3,14 +3,18 @@ import { compileAiClient } from './compileAiClient.js';
 // ─── Regex helpers to extract numbers from Gemini's structured markdown ────
 
 function extractWeeks(text, phaseName) {
+  // Escape regex special chars EXCEPT "|" — phaseName may itself be an
+  // alternation like "Build|Development|Engineering" and we want that
+  // to behave as OR, not as a literal pipe character.
+  const escaped = phaseName.replace(/[.*+?^${}()[\]\\]/g, '\\$&');
+
   // Match table rows like: | Phase Name | 4 | 25% |
-  const escaped = phaseName.replace(/[.*+?^${}()|[\]\\&]/g, '\\$&');
-  const tableRow = new RegExp(`\\|[^|]*${escaped}[^|]*\\|\\s*(\\d+)`, 'i');
+  const tableRow = new RegExp(`\\|[^|]*(?:${escaped})[^|]*\\|\\s*(\\d+)`, 'i');
   const m = text.match(tableRow);
   if (m) return parseInt(m[1], 10);
 
   // Match inline "Phase Name: N weeks" or "Phase Name — N weeks"
-  const inline = new RegExp(`${escaped}[^\\n]{0,30}?(\\d+)\\s*weeks?`, 'i');
+  const inline = new RegExp(`(?:${escaped})[^\\n]{0,30}?(\\d+)\\s*weeks?`, 'i');
   const m2 = text.match(inline);
   if (m2) return parseInt(m2[1], 10);
 
@@ -18,9 +22,9 @@ function extractWeeks(text, phaseName) {
 }
 
 function extractUSD(text, label) {
-  // Match "$75,000" or "$75k" or "75,000" near a label like "Low", "Mid", "High"
-  const escaped = label.replace(/[.*+?^${}()|[\]\\&]/g, '\\$&');
-  const pattern = new RegExp(`${escaped}[^\\n$]{0,50}\\$([\\d,]+(?:\\.\\d+)?(?:k|K)?)`, 'i');
+  const escaped = label.replace(/[.*+?^${}()[\]\\]/g, '\\$&');
+
+  const pattern = new RegExp(`(?:${escaped})[^\\n$]{0,50}\\$([\\d,]+(?:\\.\\d+)?(?:k|K)?)`, 'i');
   const m = text.match(pattern);
   if (!m) return null;
 
@@ -55,7 +59,6 @@ function buildPhaseBreakdown(text, totalWeeks) {
     breakdown.push({ phase: phase.label, weeks: weeks || 0, percentage: 0 });
   }
 
-  // Calculate real percentages
   const total = extractedWeeks || totalWeeks || 16;
   for (const item of breakdown) {
     item.percentage = item.weeks > 0
@@ -63,7 +66,6 @@ function buildPhaseBreakdown(text, totalWeeks) {
       : 0;
   }
 
-  // If we extracted nothing meaningful, return null so caller can use fallback
   if (extractedWeeks === 0) return null;
   return breakdown;
 }
@@ -80,21 +82,70 @@ function extractDeliveryModel(text) {
   return m ? m[1].trim() : null;
 }
 
+// ─── NEW: normalize discovery answers into a clean { question: answer } map ─
+//
+// Callers have been observed passing either:
+//   (a) an ARRAY of DB records: [{ id, session_id, question, answer, ... }, ...]
+//   (b) a proper dict already: { "question text": "answer text", ... }
+//   (c) a dict whose values are still full record objects (same bug, different shape)
+//
+// The Compile AI FastAPI backend requires `discovery_answers: dict[str, str]`.
+// Passing shape (a) directly through `{ ...discoveryAnswers }` silently produces
+// `{ "0": {...record}, "1": {...record} }`, which fails Pydantic validation with
+// a 422 ("Input should be a valid string" at discovery_answers.0) and causes the
+// AI call to throw, silently falling back to the static $35K/$85K/$165K numbers.
+function normalizeDiscoveryAnswers(discoveryAnswers) {
+  if (!discoveryAnswers) return {};
+
+  // Case (a): array of DB records
+  if (Array.isArray(discoveryAnswers)) {
+    const out = {};
+    for (const item of discoveryAnswers) {
+      if (item && typeof item === 'object' && item.question && item.answer != null) {
+        out[String(item.question)] = String(item.answer);
+      }
+    }
+    return out;
+  }
+
+  // Case (b)/(c): dict — guard against object-shaped values
+  if (typeof discoveryAnswers === 'object') {
+    const out = {};
+    for (const [key, value] of Object.entries(discoveryAnswers)) {
+      if (value == null) continue;
+      if (typeof value === 'string') {
+        out[key] = value;
+      } else if (typeof value === 'object' && 'answer' in value) {
+        // e.g. { "0": { question, answer, ... } }
+        const q = value.question ? String(value.question) : key;
+        out[q] = String(value.answer);
+      } else {
+        out[key] = String(value);
+      }
+    }
+    return out;
+  }
+
+  return {};
+}
+
 // ─── Main estimation service ────────────────────────────────────────────────
 
 export const estimation = {
-  async generateEstimate({ brd = {}, architecture = {}, rawInput = '', context = {}, discoveryAnswers = {} }) {
+  async generateEstimate({ brd = {}, architecture = {}, rawInput = '', context = {}, discoveryAnswers = {}, userLanguage = 'English' }) {
 
     const inputText = rawInput || brd.objectives || '';
 
-    // Pass discovery answers to give the AI richer context for estimation
-    const enrichedAnswers = { ...discoveryAnswers };
+    // Normalize into { question: answer } strings before handing off to Compile AI.
+    // This is the fix: previously `{ ...discoveryAnswers }` on an array silently
+    // produced numeric-keyed object records, which failed backend validation.
+    const enrichedAnswers = normalizeDiscoveryAnswers(discoveryAnswers);
 
     let aiContent = null;
 
     try {
       if (await compileAiClient.isHealthy()) {
-        const sections = await compileAiClient.generate(inputText, enrichedAnswers, 'estimate');
+        const sections = await compileAiClient.generate(inputText, enrichedAnswers, 'estimate', userLanguage);
         if (Array.isArray(sections) && sections.length > 0 && sections[0]?.content) {
           aiContent = sections[0].content;
         }
@@ -108,17 +159,17 @@ export const estimation = {
       const totalWeeks = extractTotalWeeks(aiContent);
       const phaseBreakdown = buildPhaseBreakdown(aiContent, totalWeeks);
 
-      const lowUsd  = extractUSD(aiContent, 'Low|MVP|Minimum');
-      const midUsd  = extractUSD(aiContent, 'Mid|Recommended|Baseline');
+      const lowUsd = extractUSD(aiContent, 'Low|MVP|Minimum');
+      const midUsd = extractUSD(aiContent, 'Mid|Recommended|Baseline');
       const highUsd = extractUSD(aiContent, 'High|Enterprise');
 
       const teamComposition = extractTeamComposition(aiContent);
-      const deliveryModel   = extractDeliveryModel(aiContent);
+      const deliveryModel = extractDeliveryModel(aiContent);
 
       // Only use AI numbers if we parsed something meaningful
       if (phaseBreakdown && (lowUsd || midUsd || highUsd)) {
-        const resolvedLow  = lowUsd  || Math.round((midUsd || 95000) * 0.5);
-        const resolvedMid  = midUsd  || Math.round((lowUsd || 45000) * 2);
+        const resolvedLow = lowUsd || Math.round((midUsd || 95000) * 0.5);
+        const resolvedMid = midUsd || Math.round((lowUsd || 45000) * 2);
         const resolvedHigh = highUsd || Math.round((midUsd || 95000) * 2);
 
         console.log(`[Estimation] AI-derived: Low=$${resolvedLow.toLocaleString()}, Mid=$${resolvedMid.toLocaleString()}, High=$${resolvedHigh.toLocaleString()}, Weeks=${totalWeeks}`);
@@ -126,8 +177,8 @@ export const estimation = {
         return {
           phaseBreakdown,
           costBand: `Low: $${resolvedLow.toLocaleString()} | Mid: $${resolvedMid.toLocaleString()} | High: $${resolvedHigh.toLocaleString()}`,
-          lowEstimateUsd:  resolvedLow,
-          midEstimateUsd:  resolvedMid,
+          lowEstimateUsd: resolvedLow,
+          midEstimateUsd: resolvedMid,
           highEstimateUsd: resolvedHigh,
           rawEstimateDetails: aiContent,
           teamAssumptions: {
@@ -162,8 +213,8 @@ function buildFallback(aiContent, context = {}) {
       { phase: 'Deployment & Pilot Launch', weeks: 2, percentage: 13 },
     ],
     costBand: 'Estimated — regenerate for requirement-specific figures',
-    lowEstimateUsd:  35000,
-    midEstimateUsd:  85000,
+    lowEstimateUsd: 35000,
+    midEstimateUsd: 85000,
     highEstimateUsd: 165000,
     rawEstimateDetails: aiContent || null,
     teamAssumptions: {

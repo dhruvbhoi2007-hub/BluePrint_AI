@@ -511,6 +511,10 @@ export default function InputScreen() {
   };
 
   const addFiles = (newFiles) => {
+    if (isViewer) {
+      alert('🔒 Access Restricted: Uploading & processing enterprise SOPs is restricted for Viewer (Read-Only) role. Your account role is permanently assigned as Viewer.');
+      return;
+    }
     const filtered = newFiles.filter(file => {
       if (file.size > 25 * 1024 * 1024) {
         alert(`File "${file.name}" exceeds the 25MB limit.`);
@@ -546,7 +550,7 @@ export default function InputScreen() {
     setErrorNotice('');
 
     if (isViewer) {
-      alert('🔒 Access Restricted: Creation of new transformation blueprints is disabled in Viewer (Read-Only) mode. Switch your role to Developer or Admin in the top navigation bar to proceed.');
+      alert('🔒 Access Restricted: Creation of new transformation blueprints is disabled in Viewer (Read-Only) mode. Your account role is permanently assigned as Viewer.');
       return;
     }
 
@@ -604,6 +608,7 @@ ${problemPrompt.trim()}`.trim();
         body: JSON.stringify({
           title: title.trim(),
           initialText: compositeInitialText,
+          userLanguage: currentLanguage,
         }),
       });
 
@@ -635,6 +640,7 @@ ${problemPrompt.trim()}`.trim();
           formData.append('file', file);
           formData.append('fileName', file.name);
           formData.append('fileType', file.type || 'application/octet-stream');
+          formData.append('userLanguage', currentLanguage);
 
           const uploadRes = await fetch(`http://localhost:5000/api/sessions/${sessionId}/input`, {
             method: 'POST',
@@ -943,7 +949,7 @@ ${problemPrompt.trim()}`.trim();
                   {t('rbac.viewerNotice') || 'Viewing in Read-Only Mode'}
                 </div>
                 <div style={{ fontSize: 12.5, color: '#b91c1c', lineHeight: 1.5 }}>
-                  You are exploring with <strong>Viewer</strong> role. Blueprint creation, intake submission, and live deployment are disabled. Switch to <strong>Developer</strong> or <strong>Admin</strong> in the top navigation bar to create blueprints.
+                  You are logged in with the <strong>Viewer</strong> role. Blueprint creation, intake submission, and live deployment are disabled. Account roles are permanently assigned at registration.
                 </div>
               </div>
             </div>

@@ -12,7 +12,7 @@ const PERSONAL_EMAIL_DOMAINS = new Set([
 export const authController = {
   async register(req, res, next) {
     try {
-      const { name, email, password, company } = req.body;
+      const { name, email, password, company, role } = req.body;
 
       if (!name || !email || !password) {
         return res.status(400).json({
@@ -47,7 +47,6 @@ export const authController = {
       // 2. Check if company / organization already exists
       let org = await OrganizationModel.findByName(companyName);
       let workspace = null;
-      let assignedRole = 'member'; // Default to member
 
       if (org) {
         // Company exists! Find its workspace
@@ -58,14 +57,6 @@ export const authController = {
             orgId: org.id,
           });
         }
-
-        // Rule: Only 1 person per company can be 'owner'
-        const hasOwner = await UserModel.hasOwner(workspace.id);
-        if (!hasOwner) {
-          assignedRole = 'owner';
-        } else {
-          assignedRole = 'member'; // Company already has an owner
-        }
       } else {
         // Brand new company: create organization & workspace
         org = await OrganizationModel.create({ name: companyName });
@@ -73,11 +64,20 @@ export const authController = {
           name: `${companyName} Workspace`,
           orgId: org.id,
         });
-        // First person registering for this company becomes the sole Owner
-        assignedRole = 'owner';
       }
 
-      // 3. Create user assigned to company workspace with enforced role
+      // 3. Assign role: User-specified role takes priority, validating against allowed roles
+      const validRoles = ['admin', 'developer', 'viewer'];
+      let assignedRole = 'developer';
+      if (role && validRoles.includes(String(role).trim().toLowerCase())) {
+        assignedRole = String(role).trim().toLowerCase();
+      } else {
+        // Fallback: check if workspace already has an admin/owner
+        const hasOwner = await UserModel.hasOwner(workspace.id);
+        assignedRole = hasOwner ? 'developer' : 'admin';
+      }
+
+      // 4. Create user assigned to company workspace with specified role
       const user = await UserModel.create({
         name,
         email,
@@ -86,7 +86,7 @@ export const authController = {
         role: assignedRole,
       });
 
-      // 4. Issue JWT Token
+      // 5. Issue JWT Token
       const token = jwt.sign(
         {
           userId: user.id,
@@ -101,9 +101,7 @@ export const authController = {
 
       res.status(201).json({
         success: true,
-        message: assignedRole === 'owner'
-          ? `Welcome! You are the primary Owner for ${companyName}.`
-          : `Welcome! You have joined ${companyName} as a Team Member.`,
+        message: `Account created successfully. Role '${user.role}' assigned to User ID '${user.id}'.`,
         token,
         user: {
           id: user.id,
@@ -159,13 +157,14 @@ export const authController = {
 
       res.json({
         success: true,
-        message: 'Logged in successfully.',
+        message: `Authenticated successfully. Role '${user.role}' belongs to User ID '${user.id}'.`,
         token,
         user: {
           id: user.id,
           name: user.name,
           email: user.email,
           role: user.role,
+          company: user.company || (user.workspace_name ? user.workspace_name.replace(' Workspace', '') : 'Workspace'),
           workspaceId: user.workspace_id,
           credits: user.credits !== undefined ? user.credits : 5,
           onboardingCompleted: true,
@@ -266,89 +265,17 @@ export const authController = {
   },
 
   async updateRole(req, res, next) {
-    try {
-      const { role } = req.body;
-      const validRoles = ['owner', 'admin', 'member', 'developer', 'viewer'];
-      if (!role || !validRoles.includes(String(role).toLowerCase())) {
-        return res.status(400).json({
-          success: false,
-          message: `Invalid role. Allowed roles: ${validRoles.join(', ')}`,
-        });
-      }
-
-      const targetRole = String(role).toLowerCase();
-      const userId = req.user.userId;
-      const updatedUser = await UserModel.updateRole(userId, targetRole);
-
-      // Issue refreshed JWT token containing updated role
-      const token = jwt.sign(
-        {
-          userId: updatedUser.id,
-          email: updatedUser.email,
-          workspaceId: updatedUser.workspace_id,
-          role: updatedUser.role,
-          companyName: updatedUser.company,
-        },
-        env.JWT_SECRET,
-        { expiresIn: env.JWT_EXPIRES_IN }
-      );
-
-      res.json({
-        success: true,
-        message: `Role successfully updated to ${targetRole}.`,
-        token,
-        user: {
-          id: updatedUser.id,
-          name: updatedUser.name,
-          email: updatedUser.email,
-          role: updatedUser.role,
-          company: updatedUser.company,
-          workspaceId: updatedUser.workspace_id,
-          credits: updatedUser.credits,
-        },
-      });
-    } catch (err) {
-      next(err);
-    }
+    return res.status(403).json({
+      success: false,
+      message: 'Forbidden: Account roles are immutable once registered and cannot be modified.',
+    });
   },
 
   async updateMemberRole(req, res, next) {
-    try {
-      const { memberId } = req.params;
-      const { role } = req.body;
-      const validRoles = ['owner', 'admin', 'member', 'developer', 'viewer'];
-      if (!role || !validRoles.includes(String(role).toLowerCase())) {
-        return res.status(400).json({
-          success: false,
-          message: `Invalid role. Allowed roles: ${validRoles.join(', ')}`,
-        });
-      }
-
-      const targetRole = String(role).toLowerCase();
-      const targetUser = await UserModel.findById(memberId);
-      if (!targetUser) {
-        return res.status(404).json({ success: false, message: 'Member not found.' });
-      }
-
-      if (targetUser.workspace_id !== req.user.workspaceId) {
-        return res.status(403).json({ success: false, message: 'Cannot modify users from another workspace.' });
-      }
-
-      const updatedUser = await UserModel.updateRole(memberId, targetRole);
-
-      res.json({
-        success: true,
-        message: `Member ${updatedUser.name}'s role updated to ${targetRole}.`,
-        user: {
-          id: updatedUser.id,
-          name: updatedUser.name,
-          email: updatedUser.email,
-          role: updatedUser.role,
-        },
-      });
-    } catch (err) {
-      next(err);
-    }
+    return res.status(403).json({
+      success: false,
+      message: 'Forbidden: Account roles are immutable once registered at signup and cannot be modified.',
+    });
   },
 
   async getWorkspaceMembers(req, res, next) {

@@ -555,46 +555,18 @@ export function getUserRole() {
     if (user && user.role) {
       return normalizeFrontendRole(user.role);
     }
-    return 'admin';
+    return 'viewer';
   } catch {
-    return 'admin';
+    return 'viewer';
   }
 }
 
 /**
- * Update user role through the backend API and update stored session & state
+ * Align active user role state with authenticated user profile.
+ * Note: Roles are permanent and immutable once assigned at signup.
  */
 export async function setUserRole(role) {
   const cleanRole = normalizeFrontendRole(role);
-  const token = getStoredToken();
-
-  if (token) {
-    try {
-      const res = await fetch('http://localhost:5000/api/auth/role', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ role: cleanRole }),
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        if (data.token) {
-          setStoredToken(data.token);
-        }
-        if (data.user) {
-          const currentUser = getStoredUser() || {};
-          setStoredUser({ ...currentUser, ...data.user, role: cleanRole });
-        }
-      }
-    } catch (e) {
-      console.warn('Could not sync role change to backend:', e);
-    }
-  }
-
-  // Local state update
   const user = getStoredUser() || {};
   user.role = cleanRole;
   setStoredUser(user);

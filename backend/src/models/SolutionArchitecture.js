@@ -25,6 +25,7 @@ export const SolutionArchitectureModel = {
       database_schema: safeParseJson(row.database_schema, null),
       api_specs: safeParseJson(row.api_specs, null),
       wireframes: safeParseJson(row.wireframes, null),
+      prototype: safeParseJson(row.prototype, null),
     };
   },
 
@@ -39,6 +40,7 @@ export const SolutionArchitectureModel = {
     databaseSchema = null,
     apiSpecs = null,
     wireframes = null,
+    prototype = null,
     version = 1,
   }) {
     const existing = await this.findBySessionId(sessionId);
@@ -51,12 +53,13 @@ export const SolutionArchitectureModel = {
     const dbJson = databaseSchema ? JSON.stringify(databaseSchema) : null;
     const apiJson = apiSpecs ? JSON.stringify(apiSpecs) : null;
     const wireframesJson = wireframes ? JSON.stringify(wireframes) : null;
+    const prototypeJson = prototype ? JSON.stringify(prototype) : null;
 
     if (existing) {
       await query(
         `UPDATE solution_architectures
          SET hld_summary = ?, tech_stack = ?, components = ?, data_flow = ?, security_notes = ?,
-             bpmn_workflows = ?, database_schema = ?, api_specs = ?, wireframes = ?, version = ?
+             bpmn_workflows = ?, database_schema = ?, api_specs = ?, wireframes = ?, prototype = ?, version = ?
          WHERE id = ?`,
         [
           hldSummary,
@@ -68,6 +71,7 @@ export const SolutionArchitectureModel = {
           dbJson,
           apiJson,
           wireframesJson,
+          prototypeJson,
           nextVersion,
           id,
         ]
@@ -75,8 +79,8 @@ export const SolutionArchitectureModel = {
     } else {
       await query(
         `INSERT INTO solution_architectures 
-         (id, session_id, hld_summary, tech_stack, components, data_flow, security_notes, bpmn_workflows, database_schema, api_specs, wireframes, version)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         (id, session_id, hld_summary, tech_stack, components, data_flow, security_notes, bpmn_workflows, database_schema, api_specs, wireframes, prototype, version)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           id,
           sessionId,
@@ -89,11 +93,38 @@ export const SolutionArchitectureModel = {
           dbJson,
           apiJson,
           wireframesJson,
+          prototypeJson,
           nextVersion,
         ]
       );
     }
 
+    return this.findBySessionId(sessionId);
+  },
+
+  async updateWireframes(sessionId, wireframes) {
+    const existing = await this.findBySessionId(sessionId);
+    if (!existing) {
+      return this.upsert({ sessionId, wireframes });
+    }
+    const wireframesJson = wireframes ? JSON.stringify(wireframes) : null;
+    await query(
+      `UPDATE solution_architectures SET wireframes = ? WHERE session_id = ?`,
+      [wireframesJson, sessionId]
+    );
+    return this.findBySessionId(sessionId);
+  },
+
+  async updatePrototype(sessionId, prototype) {
+    const existing = await this.findBySessionId(sessionId);
+    if (!existing) {
+      return this.upsert({ sessionId, prototype });
+    }
+    const prototypeJson = prototype ? JSON.stringify(prototype) : null;
+    await query(
+      `UPDATE solution_architectures SET prototype = ? WHERE session_id = ?`,
+      [prototypeJson, sessionId]
+    );
     return this.findBySessionId(sessionId);
   }
 };

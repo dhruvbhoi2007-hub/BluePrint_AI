@@ -39,11 +39,16 @@ export const env = {
 
   // 3. Google Gemini
   GEMINI_API_KEY: process.env.GEMINI_API_KEY || '',
+  GEMINI_API_KEYS: (process.env.GEMINI_API_KEYS || process.env.GEMINI_API_KEY || '')
+    .split(',')
+    .map(k => k.trim())
+    .filter(Boolean),
   GEMINI_MODEL: process.env.GEMINI_MODEL || 'gemini-3.8-flash',
+  GEMINI_WIREFRAME_API_KEY: process.env.GEMINI_WIREFRAME_API_KEY || process.env.GEMINI_API_KEY || '',
 
   // 4. Groq
   GROQ_API_KEY: process.env.GROQ_API_KEY || '',
-  GROQ_MODEL: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+  GROQ_MODEL: process.env.GROQ_MODEL || 'qwen/qwen3.8-27b',
 
   // 5. DeepSeek
   DEEPSEEK_API_KEY: process.env.DEEPSEEK_API_KEY || '',
@@ -55,6 +60,10 @@ export const env = {
   OLLAMA_MODEL: process.env.OLLAMA_MODEL || 'llama3.2',
 
   // Payment Gateway (Razorpay)
-  RAZORPAY_KEY_ID: process.env.RAZORPAY_KEY_ID || 'rzp_test_blueprint2026',
-  RAZORPAY_KEY_SECRET: process.env.RAZORPAY_KEY_SECRET || 'secret_blueprint_secure_2026',
+  RAZORPAY_KEY_ID: process.env.RAZORPAY_KEY_ID || '',
+  RAZORPAY_KEY_SECRET: process.env.RAZORPAY_KEY_SECRET || '',
+
+  // 7. Product Prototype Dual AI Engine (Round-Robin)
+  PROTOTYPE_GEMINI_KEY: process.env.PROTOTYPE_GEMINI_KEY || process.env.GEMINI_API_KEY || '',
+  PROTOTYPE_GROQ_KEY: process.env.PROTOTYPE_GROQ_KEY || process.env.GROQ_API_KEY || '',
 };

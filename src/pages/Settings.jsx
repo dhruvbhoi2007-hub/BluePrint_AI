@@ -175,50 +175,6 @@ export default function Settings() {
     return () => window.removeEventListener('role_changed', onRoleChanged);
   }, [navigate]);
 
-  // Handle switching active user's own role
-  const handleSwitchMyRole = async (newRole) => {
-    setTeamMsg({ type: '', text: '' });
-    try {
-      const updated = await setUserRole(newRole);
-      setActiveRole(updated);
-      setUser(getStoredUser());
-      setTeamMsg({ type: 'success', text: `✓ Your active role is now set to "${newRole.toUpperCase()}" and synced with the backend.` });
-      const token = getStoredToken();
-      if (token) fetchMembers(token);
-    } catch (err) {
-      setTeamMsg({ type: 'error', text: 'Failed to update role in backend.' });
-    }
-  };
-
-  // Handle Admin updating a member's role
-  const handleUpdateMemberRole = async (memberId, newRole) => {
-    const token = getStoredToken();
-    if (!token) return;
-    setUpdatingMemberId(memberId);
-    setTeamMsg({ type: '', text: '' });
-
-    try {
-      const res = await fetch(`http://localhost:5000/api/auth/users/${memberId}/role`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ role: newRole }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to update member role.');
-
-      setTeamMsg({ type: 'success', text: `✓ ${data.message || 'Member role updated successfully.'}` });
-      fetchMembers(token);
-    } catch (err) {
-      setTeamMsg({ type: 'error', text: err.message });
-    } finally {
-      setUpdatingMemberId(null);
-    }
-  };
-
   // Handle Profile Update
   const handleSaveProfile = async (e) => {
     e.preventDefault();
@@ -568,28 +524,39 @@ export default function Settings() {
                 <div className="settings-role-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                   <div style={{ background: C.surfaceAlt, padding: 14, borderRadius: 10, border: `1px solid ${C.border}` }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: C.textSub, textTransform: 'uppercase', marginBottom: 4 }}>
-                      Role Assignment
+                      Role & User ID Association
                     </div>
-                    <span style={{
-                      fontSize: 12,
-                      fontWeight: 800,
-                      padding: '3px 9px',
-                      borderRadius: 6,
-                      background: user?.role === 'owner' ? C.primaryLt : C.surface,
-                      color: user?.role === 'owner' ? C.primaryDk : C.textB,
-                      display: 'inline-block',
-                      textTransform: 'uppercase',
-                    }}>
-                      {user?.role === 'owner' ? '★ Owner (Primary Admin)' : 'Team Member'}
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      <span style={{
+                        fontSize: 12,
+                        fontWeight: 800,
+                        padding: '3px 9px',
+                        borderRadius: 6,
+                        background: activeRole === 'admin' ? C.primaryLt : activeRole === 'developer' ? '#ecfdf5' : '#f1f5f9',
+                        color: activeRole === 'admin' ? C.primaryDk : activeRole === 'developer' ? '#065f46' : '#475569',
+                        display: 'inline-block',
+                        textTransform: 'uppercase',
+                      }}>
+                        {activeRole.toUpperCase()}
+                      </span>
+                      <span style={{ fontSize: 11.5, color: C.textM }}>
+                        belongs to User ID
+                      </span>
+                    </div>
+                    <div style={{ marginTop: 6, fontSize: 11.5, fontFamily: 'monospace', color: C.textH, fontWeight: 700, wordBreak: 'break-all' }}>
+                      {user?.id || 'N/A'}
+                    </div>
                   </div>
 
                   <div style={{ background: C.surfaceAlt, padding: 14, borderRadius: 10, border: `1px solid ${C.border}` }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: C.textSub, textTransform: 'uppercase', marginBottom: 4 }}>
                       Workspace Context
                     </div>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: C.textB, fontFamily: 'monospace' }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: C.textB, fontFamily: 'monospace', wordBreak: 'break-all' }}>
                       {user?.workspaceId ? user.workspaceId.slice(0, 16) + '...' : 'Default'}
+                    </div>
+                    <div style={{ marginTop: 6, fontSize: 11, color: C.textSub }}>
+                      Organization: {companyInput || 'Workspace'}
                     </div>
                   </div>
                 </div>
@@ -645,9 +612,57 @@ export default function Settings() {
                   <span>● Active Role: {activeRole.toUpperCase()}</span>
                 </div>
               </div>
-              <p style={{ fontSize: 13.5, color: C.textM, margin: '0 0 24px' }}>
+              <p style={{ fontSize: 13.5, color: C.textM, margin: '0 0 18px' }}>
                 Enforce granular permissions for Blueprint AI generation, section editing, and solution deployment.
               </p>
+
+              {/* Role-to-ID Identity Specification Banner */}
+              <div style={{
+                background: 'linear-gradient(135deg, rgba(99,102,241,0.06) 0%, rgba(6,182,212,0.06) 100%)',
+                border: '1.5px solid rgba(99,102,241,0.25)',
+                borderRadius: 12,
+                padding: '12px 18px',
+                marginBottom: 20,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: 12,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 20 }}>🛡️</span>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: C.textH }}>
+                      Role <span style={{ color: C.primary, textTransform: 'uppercase' }}>{activeRole}</span> belongs to this User ID:
+                    </div>
+                    <div style={{ fontSize: 12, fontFamily: 'monospace', color: C.primary, fontWeight: 700, marginTop: 2 }}>
+                      {user?.id || 'N/A'}
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (user?.id) {
+                      navigator.clipboard.writeText(user.id);
+                      alert(`User ID copied: ${user.id}`);
+                    }
+                  }}
+                  style={{
+                    background: C.surface,
+                    border: `1px solid ${C.border}`,
+                    borderRadius: 8,
+                    padding: '6px 14px',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: C.textH,
+                    cursor: 'pointer',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                  }}
+                >
+                  Copy User ID
+                </button>
+              </div>
 
               {teamMsg.text && (
                 <div style={{
@@ -664,54 +679,95 @@ export default function Settings() {
                 </div>
               )}
 
-              {/* 1. Switch Current Active Role */}
+              {/* 1. Permanent Assigned Role (Immutable) */}
               <div style={{ background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 14, padding: 20, marginBottom: 24 }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: C.textH, marginBottom: 6 }}>
-                  Switch Your Active Workspace Role
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 8 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: C.textH }}>
+                    Assigned Workspace Role (Immutable)
+                  </div>
+                  <span style={{
+                    fontSize: 11,
+                    fontWeight: 800,
+                    padding: '3px 10px',
+                    borderRadius: 20,
+                    background: '#f1f5f9',
+                    color: '#475569',
+                    border: '1px solid #cbd5e1',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 5,
+                  }}>
+                    <span>🔒</span> PERMANENT &amp; LOCKED
+                  </span>
                 </div>
-                <p style={{ fontSize: 12.5, color: C.textM, margin: '0 0 16px' }}>
-                  Changes are persisted directly to the backend database and update your cryptographic JWT token.
+                <p style={{ fontSize: 12.5, color: C.textM, margin: '0 0 16px', lineHeight: 1.5 }}>
+                  This role was specified during account registration and is permanently bound to this User ID. Once assigned, roles cannot be modified to guarantee security governance.
                 </p>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
-                  {[
-                    { id: 'admin', title: 'Admin (Owner)', desc: 'Full privileges: Generation, section regeneration, team management & deployment.' },
-                    { id: 'developer', title: 'Developer (Member)', desc: 'Standard access: Create and generate blueprints, edit sections, and view artifacts.' },
-                    { id: 'viewer', title: 'Viewer (Read-Only)', desc: 'Auditor access: Inspect blueprints, exports and diagrams without modification rights.' },
-                  ].map(r => {
-                    const isCurrent = activeRole === r.id;
-                    return (
-                      <div
-                        key={r.id}
-                        onClick={() => handleSwitchMyRole(r.id)}
-                        style={{
-                          background: isCurrent ? C.surface : C.surfaceAlt,
-                          border: `2px solid ${isCurrent ? C.primary : C.border}`,
-                          borderRadius: 12,
-                          padding: 16,
-                          cursor: 'pointer',
-                          transition: 'all 0.15s ease',
-                          boxShadow: isCurrent ? '0 4px 12px rgba(99,102,241,0.12)' : 'none',
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                          <span style={{ fontSize: 13.5, fontWeight: 800, color: isCurrent ? C.primary : C.textH }}>
-                            {r.title}
-                          </span>
-                          {isCurrent && (
-                            <span style={{ fontSize: 11, fontWeight: 800, color: C.primary, background: C.primaryLt, padding: '2px 8px', borderRadius: 10 }}>
-                              Selected
-                            </span>
-                          )}
-                        </div>
-                        <p style={{ fontSize: 12, color: C.textM, margin: 0, lineHeight: 1.4 }}>
-                          {r.desc}
-                        </p>
+                <div style={{
+                  background: C.surface,
+                  border: `2px solid ${activeRole === 'admin' ? C.primary : activeRole === 'developer' ? '#10b981' : '#64748b'}`,
+                  borderRadius: 14,
+                  padding: 18,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: 14,
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                    <div style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: 12,
+                      background: activeRole === 'admin' ? C.primaryLt : activeRole === 'developer' ? '#ecfdf5' : '#f1f5f9',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: 22,
+                    }}>
+                      {activeRole === 'admin' ? '🛡️' : activeRole === 'developer' ? '💻' : '👁️'}
+                    </div>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 15, fontWeight: 800, color: C.textH }}>
+                          {activeRole === 'admin' ? 'Administrator' : activeRole === 'developer' ? 'Developer / Solution Architect' : 'Viewer (Auditor)'}
+                        </span>
+                        <span style={{
+                          fontSize: 10.5,
+                          fontWeight: 800,
+                          textTransform: 'uppercase',
+                          padding: '2px 8px',
+                          borderRadius: 6,
+                          background: activeRole === 'admin' ? C.primaryLt : activeRole === 'developer' ? '#ecfdf5' : '#f1f5f9',
+                          color: activeRole === 'admin' ? C.primaryDk : activeRole === 'developer' ? '#065f46' : '#475569',
+                        }}>
+                          {activeRole}
+                        </span>
                       </div>
-                    );
-                  })}
+                      <div style={{ fontSize: 12, color: C.textM, marginTop: 4 }}>
+                        {activeRole === 'admin' && 'Full privileges: Solution Architecture, BRD generation, section regeneration, and cloud sandbox deployment.'}
+                        {activeRole === 'developer' && 'Standard access: Create and generate blueprints, edit sections, interactive discovery chat, and view artifacts.'}
+                        {activeRole === 'viewer' && 'Read-only access: Inspect generated blueprints, diagrams, and export files.'}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{
+                    padding: '8px 14px',
+                    borderRadius: 8,
+                    background: C.surfaceAlt,
+                    border: `1px solid ${C.border}`,
+                    fontSize: 11.5,
+                    fontFamily: 'monospace',
+                    color: C.textSub,
+                  }}>
+                    User ID: {user?.id ? user.id.slice(0, 18) + '...' : 'N/A'}
+                  </div>
                 </div>
               </div>
+
 
               {/* 2. Permission Matrix */}
               <div style={{ background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 14, padding: 20, marginBottom: 24 }}>
@@ -735,19 +791,19 @@ export default function Settings() {
                         { name: 'Upload & Process Enterprise SOPs', admin: true, dev: true, viewer: false },
                         { name: 'Export PDF / Word / JSON Schemas', admin: true, dev: true, viewer: true },
                         { name: 'View Diagrams & Interactive Sandbox', admin: true, dev: true, viewer: true },
-                        { name: 'Manage Team Member Roles & Policies', admin: true, dev: false, viewer: false },
+                        { name: 'Workspace Role Assignment (Locked at Signup)', admin: '🔒 Immutable', dev: '🔒 Immutable', viewer: '🔒 Immutable' },
                         { name: 'Trigger Automated Cloud Sandbox Deploy', admin: true, dev: false, viewer: false },
                       ].map((row, idx) => (
                         <tr key={idx} style={{ borderBottom: `1px solid ${C.border}` }}>
                           <td style={{ padding: '10px 12px', color: C.textB, fontWeight: 600 }}>{row.name}</td>
-                          <td style={{ padding: '10px 12px', textAlign: 'center', color: row.admin ? '#10b981' : '#ef4444', fontWeight: 700 }}>
-                            {row.admin ? '✓ Allowed' : '✗ Restricted'}
+                          <td style={{ padding: '10px 12px', textAlign: 'center', color: typeof row.admin === 'boolean' ? (row.admin ? '#10b981' : '#ef4444') : '#059669', fontWeight: 700 }}>
+                            {typeof row.admin === 'boolean' ? (row.admin ? '✓ Allowed' : '✗ Restricted') : row.admin}
                           </td>
-                          <td style={{ padding: '10px 12px', textAlign: 'center', color: row.dev ? '#10b981' : '#ef4444', fontWeight: 700 }}>
-                            {row.dev ? '✓ Allowed' : '✗ Restricted'}
+                          <td style={{ padding: '10px 12px', textAlign: 'center', color: typeof row.dev === 'boolean' ? (row.dev ? '#10b981' : '#ef4444') : '#059669', fontWeight: 700 }}>
+                            {typeof row.dev === 'boolean' ? (row.dev ? '✓ Allowed' : '✗ Restricted') : row.dev}
                           </td>
-                          <td style={{ padding: '10px 12px', textAlign: 'center', color: row.viewer ? '#10b981' : '#ef4444', fontWeight: 700 }}>
-                            {row.viewer ? '✓ Allowed' : '✗ Restricted'}
+                          <td style={{ padding: '10px 12px', textAlign: 'center', color: typeof row.viewer === 'boolean' ? (row.viewer ? '#10b981' : '#ef4444') : '#059669', fontWeight: 700 }}>
+                            {typeof row.viewer === 'boolean' ? (row.viewer ? '✓ Allowed' : '✗ Restricted') : row.viewer}
                           </td>
                         </tr>
                       ))}
@@ -764,7 +820,7 @@ export default function Settings() {
                       Workspace Team Members ({workspaceMembers.length})
                     </div>
                     <div style={{ fontSize: 12, color: C.textM }}>
-                      Administrators can assign and update member roles below.
+                      Member roles are permanently bound to user IDs upon account registration and cannot be modified.
                     </div>
                   </div>
                   <button
@@ -803,7 +859,7 @@ export default function Settings() {
                           <th style={{ padding: '10px 12px', fontWeight: 700 }}>Member Name</th>
                           <th style={{ padding: '10px 12px', fontWeight: 700 }}>Email Address</th>
                           <th style={{ padding: '10px 12px', fontWeight: 700 }}>Assigned Role</th>
-                          <th style={{ padding: '10px 12px', fontWeight: 700, textAlign: 'right' }}>Role Action</th>
+                          <th style={{ padding: '10px 12px', fontWeight: 700, textAlign: 'right' }}>Role Status</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -832,32 +888,20 @@ export default function Settings() {
                                 </span>
                               </td>
                               <td style={{ padding: '12px', textAlign: 'right' }}>
-                                <select
-                                  value={currentNorm}
-                                  disabled={updatingMemberId === m.id}
-                                  onChange={(e) => {
-                                    if (isMe) {
-                                      handleSwitchMyRole(e.target.value);
-                                    } else {
-                                      handleUpdateMemberRole(m.id, e.target.value);
-                                    }
-                                  }}
-                                  style={{
-                                    padding: '5px 10px',
-                                    borderRadius: 7,
-                                    border: `1px solid ${C.border}`,
-                                    fontSize: 12,
-                                    fontWeight: 600,
-                                    color: C.textH,
-                                    background: C.surface,
-                                    cursor: 'pointer',
-                                    outline: 'none',
-                                  }}
-                                >
-                                  <option value="admin">Admin (Full Access)</option>
-                                  <option value="developer">Developer (Edit & View)</option>
-                                  <option value="viewer">Viewer (Read Only)</option>
-                                </select>
+                                <span style={{
+                                  fontSize: 11.5,
+                                  fontWeight: 700,
+                                  color: '#065f46',
+                                  background: '#ecfdf5',
+                                  border: '1px solid #a7f3d0',
+                                  padding: '4px 10px',
+                                  borderRadius: 6,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 5
+                                }}>
+                                  🔒 Permanent & Locked
+                                </span>
                               </td>
                             </tr>
                           );

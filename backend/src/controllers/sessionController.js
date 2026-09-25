@@ -18,6 +18,8 @@ import { estimation } from '../services/ai/estimation.js';
 import { llmClient } from '../services/ai/llmClient.js';
 import { inputAnalyzer } from '../services/ai/inputAnalyzer.js';
 import { compileAiClient } from '../services/ai/compileAiClient.js';
+import { wireframeGenerator } from '../services/ai/wireframeGenerator.js';
+import { prototypeGenerator } from '../services/ai/prototypeGenerator.js';
 
 export const sessionController = {
   // 1. List user sessions
@@ -46,7 +48,7 @@ export const sessionController = {
         });
       }
 
-      const { title = 'New Transformation Blueprint', initialText = '' } = req.body;
+      const { title = 'New Transformation Blueprint', initialText = '', userLanguage = 'English' } = req.body;
       const session = await SessionModel.create({
         workspaceId: req.user.workspaceId,
         userId: req.user.userId,
@@ -78,7 +80,7 @@ export const sessionController = {
           sessionId: session.id,
           ...norm,
         });
-        const questions = await discoveryEngine.generateQuestions(initialText.trim(), context);
+        const questions = await discoveryEngine.generateQuestions(initialText.trim(), context, userLanguage);
         await DiscoveryQaModel.bulkCreate(session.id, questions);
         await SessionModel.updateStatus(session.id, 'discovery');
         session.status = 'discovery';
@@ -107,7 +109,7 @@ export const sessionController = {
   async addInput(req, res, next) {
     try {
       const { id: sessionId } = req.params;
-      const { text, fileType = 'text', fileName = 'input.txt' } = req.body;
+      const { text, fileType = 'text', fileName = 'input.txt', userLanguage = 'English' } = req.body;
 
       let parsedText = text || '';
       if (req.file) {
@@ -151,7 +153,7 @@ export const sessionController = {
       const existingQas = await DiscoveryQaModel.findBySessionId(sessionId);
       let createdQas = existingQas;
       if (!existingQas || existingQas.length === 0) {
-        const questions = await discoveryEngine.generateQuestions(allText, context);
+        const questions = await discoveryEngine.generateQuestions(allText, context, userLanguage);
         createdQas = await DiscoveryQaModel.bulkCreate(sessionId, questions);
       }
 
@@ -184,6 +186,7 @@ export const sessionController = {
   async generateBlueprint(req, res, next) {
     try {
       const { id: sessionId } = req.params;
+      const { userLanguage = 'English' } = req.body || {};
       const session = await SessionModel.findById(sessionId);
       if (!session) {
         return res.status(404).json({ success: false, message: 'Session not found' });
@@ -197,9 +200,9 @@ export const sessionController = {
 
       // Execute AI generation in parallel for maximum speed (<30s NFR)
       const [brdData, archData, estData] = await Promise.all([
-        businessAnalysis.generateBrd({ rawInput, context, answeredQa: qas }),
-        solutionArchitecture.generateArchitecture({ brd: {}, context, rawInput, sessionTitle: session.title }),
-        estimation.generateEstimate({ brd: {}, architecture: {}, rawInput, context, discoveryAnswers: qas }),
+        businessAnalysis.generateBrd({ rawInput, context, answeredQa: qas, userLanguage }),
+        solutionArchitecture.generateArchitecture({ brd: {}, context, rawInput, sessionTitle: session.title, userLanguage }),
+        estimation.generateEstimate({ brd: {}, architecture: {}, rawInput, context, discoveryAnswers: qas, userLanguage }),
       ]);
 
       // Persist generated records to MySQL
@@ -243,22 +246,41 @@ export const sessionController = {
       }
 
       const { id: sessionId, section } = req.params; // section = 'brd' | 'architecture' | 'estimate'
+      const { userLanguage = 'English' } = req.body || {};
       const rawInput = await InputDocumentModel.getAllParsedText(sessionId);
       const context = await BusinessContextModel.findBySessionId(sessionId);
 
       let updated = null;
       if (section === 'brd') {
-        const data = await businessAnalysis.generateBrd({ rawInput, context });
+        const data = await businessAnalysis.generateBrd({ rawInput, context, userLanguage });
         updated = await BrdModel.upsert({ sessionId, ...data });
       } else if (section === 'architecture') {
         const brd = await BrdModel.findBySessionId(sessionId);
-        const data = await solutionArchitecture.generateArchitecture({ brd, context, rawInput });
+        const data = await solutionArchitecture.generateArchitecture({ brd, context, rawInput, userLanguage });
         updated = await SolutionArchitectureModel.upsert({ sessionId, ...data });
+      } else if (section === 'wireframes') {
+        const session = await SessionModel.findById(sessionId);
+        const wireframeData = await wireframeGenerator.generateWireframes({
+          rawInput,
+          sessionTitle: session?.title || '',
+          context,
+          userLanguage,
+        });
+        updated = await SolutionArchitectureModel.updateWireframes(sessionId, wireframeData);
+      } else if (section === 'prototype') {
+        const session = await SessionModel.findById(sessionId);
+        const prototypeData = await prototypeGenerator.generatePrototype({
+          rawInput,
+          sessionTitle: session?.title || '',
+          context,
+          userLanguage,
+        });
+        updated = await SolutionArchitectureModel.updatePrototype(sessionId, prototypeData);
       } else if (section === 'estimate') {
         const brd = await BrdModel.findBySessionId(sessionId);
         const arch = await SolutionArchitectureModel.findBySessionId(sessionId);
         const qas = await DiscoveryQaModel.findBySessionId(sessionId);
-        const data = await estimation.generateEstimate({ brd, architecture: arch, rawInput, context, discoveryAnswers: qas });
+        const data = await estimation.generateEstimate({ brd, architecture: arch, rawInput, context, discoveryAnswers: qas, userLanguage });
         updated = await EffortEstimateModel.upsert({ sessionId, ...data });
       } else {
         return res.status(400).json({ success: false, message: 'Invalid section' });
@@ -406,10 +428,11 @@ export const sessionController = {
   },
 
   // 10. Post message & generate rich data / AI consultation response with database memory storage
+  // 10. Post message & generate rich data / AI consultation response with database memory storage
   async postSessionMessage(req, res, next) {
     try {
       const { id: sessionId } = req.params;
-      const { text } = req.body;
+      const { text, userLanguage = 'English' } = req.body;
 
       if (!text || !text.trim()) {
         return res.status(400).json({ success: false, message: 'Message text is required' });
@@ -456,7 +479,7 @@ export const sessionController = {
           contextConstraints: context?.constraints_text || '',
           discoveryAnswers,
           conversationHistory,
-          userLanguage: 'English',
+          userLanguage: userLanguage || 'English',
         });
         if (chatResult && chatResult.reply) {
           aiResponseText = chatResult.reply;
@@ -467,6 +490,10 @@ export const sessionController = {
 
       // 4. Secondary Fallback: Multi-LLM Client (Gemini REST)
       if (!aiResponseText) {
+        const langInstruction = (userLanguage && userLanguage !== 'English' && userLanguage !== 'en')
+          ? `\n\nCRITICAL MULTILINGUAL INSTRUCTION:\nThe client's selected language or message language is: ${userLanguage}.\nYou MUST reply and generate your entire architectural guidance in ${userLanguage}! Technical terms like React, Node.js, PostgreSQL can stay in English, but all explanations, advice, and Markdown headers must be in ${userLanguage}.`
+          : `\n\nCRITICAL MULTILINGUAL INSTRUCTION:\nDetect the user's message language. If the user writes in Hindi (हिंदी), Gujarati (ગુજરાતી), Spanish, or any other language, you MUST reply in that exact same language!`;
+
         const systemPrompt = `You are Compile AI, an elite Principal Enterprise Solution Architect and Senior Business Analyst conducting an interactive discovery consultation.
 Initiative: "${session?.title || 'Transformation Blueprint'}"
 Context:
@@ -477,10 +504,13 @@ Context:
 
 Instructions:
 The client is asking for specific advice, data, architecture, requirements, or analysis outside the fixed discovery questions.
-Generate authoritative, structured, concrete data:
+CRITICAL: You MUST directly base your generated analysis, specifications, numbers, and recommendations on ALL the data the client has already provided in Context, Documents, and Answered Discovery!
+- Explicitly synthesize their stated MVP timeline, required integrations, security/compliance policies, 90-day operational metrics, and user roles into your response.
+- Directly reference and cite the client's provided inputs in your answer.
+- Generate authoritative, structured, concrete data:
 - Use Markdown tables for comparisons, timelines, and schemas
 - Provide exact technology choices, functional requirements, or phase breakdowns
-- Be precise, technical, and actionable.`;
+- Be precise, technical, and actionable.${langInstruction}`;
 
         try {
           aiResponseText = await llmClient.complete({
@@ -568,4 +598,142 @@ Generate authoritative, structured, concrete data:
       next(err);
     }
   },
+
+  // 8. Translate session deliverables (BRD, Architecture, Estimate) on-the-fly
+  async translateBlueprint(req, res, next) {
+    try {
+      const { id: sessionId } = req.params;
+      const { targetLanguage = 'English' } = req.body || {};
+
+      const LANG_MAP = {
+        en: 'English',
+        hi: 'Hindi',
+        gu: 'Gujarati',
+        es: 'Spanish',
+        fr: 'French',
+      };
+      const resolvedLang = LANG_MAP[targetLanguage.toLowerCase()] || targetLanguage;
+
+      const [brd, architecture, estimate] = await Promise.all([
+        BrdModel.findBySessionId(sessionId),
+        SolutionArchitectureModel.findBySessionId(sessionId),
+        EffortEstimateModel.findBySessionId(sessionId),
+      ]);
+
+      if (!brd && !architecture && !estimate) {
+        return res.status(404).json({ success: false, message: 'Deliverables not found' });
+      }
+
+      if (!resolvedLang || resolvedLang.toLowerCase() === 'english') {
+        return res.json({
+          success: true,
+          targetLanguage: 'English',
+          brd,
+          architecture,
+          estimate,
+        });
+      }
+
+      // Translate core text sections in parallel for speed
+      const [
+        translatedObjectives,
+        translatedScope,
+        translatedHld,
+        translatedDataFlow,
+        translatedSecurity,
+      ] = await Promise.all([
+        brd?.objectives ? compileAiClient.translate(brd.objectives, resolvedLang) : Promise.resolve(''),
+        brd?.scope ? compileAiClient.translate(brd.scope, resolvedLang) : Promise.resolve(''),
+        architecture?.hld_summary ? compileAiClient.translate(architecture.hld_summary, resolvedLang) : Promise.resolve(''),
+        architecture?.data_flow ? compileAiClient.translate(architecture.data_flow, resolvedLang) : Promise.resolve(''),
+        architecture?.security_notes ? compileAiClient.translate(architecture.security_notes, resolvedLang) : Promise.resolve(''),
+      ]);
+
+      const translatedBrd = brd ? {
+        ...brd,
+        objectives: translatedObjectives || brd.objectives,
+        scope: translatedScope || brd.scope,
+      } : null;
+
+      const translatedArchitecture = architecture ? {
+        ...architecture,
+        hld_summary: translatedHld || architecture.hld_summary,
+        data_flow: translatedDataFlow || architecture.data_flow,
+        security_notes: translatedSecurity || architecture.security_notes,
+      } : null;
+
+      res.json({
+        success: true,
+        targetLanguage: resolvedLang,
+        brd: translatedBrd,
+        architecture: translatedArchitecture,
+        estimate,
+      });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  // 12. Get live standalone deployed prototype webpage (HTML)
+  async getLivePrototype(req, res, next) {
+    try {
+      const { id: sessionId } = req.params;
+      const [session, architecture] = await Promise.all([
+        SessionModel.findById(sessionId),
+        SolutionArchitectureModel.findBySessionId(sessionId),
+      ]);
+
+      if (!session) {
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        return res.status(404).send(`
+          <!DOCTYPE html>
+          <html lang="en">
+          <head><meta charset="utf-8"><title>Session Not Found</title><script src="https://cdn.tailwindcss.com"></script></head>
+          <body class="bg-slate-950 text-white min-h-screen flex items-center justify-center p-6 text-center">
+            <div class="max-w-md p-8 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl">
+              <h1 class="text-xl font-bold text-red-400 mb-2">Session Not Found</h1>
+              <p class="text-sm text-slate-400">The requested blueprint session ID does not exist or has been removed.</p>
+            </div>
+          </body>
+          </html>
+        `);
+      }
+
+      let prototype = architecture?.prototype;
+      if (!prototype || !prototype.appName) {
+        // If not generated yet, generate dynamically
+        const rawInput = await InputDocumentModel.getAllParsedText(sessionId);
+        const context = await BusinessContextModel.findBySessionId(sessionId);
+        prototype = await prototypeGenerator.generatePrototype({
+          rawInput: rawInput || session.title || '',
+          sessionTitle: session.title || 'Platform',
+          context,
+          userLanguage: 'English',
+        });
+        await SolutionArchitectureModel.updatePrototype(sessionId, prototype);
+      }
+
+      const html = prototype.deployedHtml || prototypeGenerator.buildDeployedWebpageHtml(prototype);
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.removeHeader('X-Frame-Options');
+      res.setHeader('Content-Security-Policy', "frame-ancestors 'self' *");
+      return res.send(html);
+    } catch (err) {
+      console.error('[getLivePrototype] Error:', err);
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      return res.status(500).send(`
+        <!DOCTYPE html>
+        <html lang="en">
+        <head><meta charset="utf-8"><title>Error</title><script src="https://cdn.tailwindcss.com"></script></head>
+        <body class="bg-slate-950 text-white min-h-screen flex items-center justify-center p-6 text-center">
+          <div class="max-w-md p-8 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl">
+            <h1 class="text-xl font-bold text-amber-400 mb-2">Prototype Deployment Warning</h1>
+            <p class="text-sm text-slate-400">${err.message}</p>
+          </div>
+        </body>
+        </html>
+      `);
+    }
+  },
 };
+

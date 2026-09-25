@@ -29,6 +29,8 @@ import threading
 from contextlib import asynccontextmanager
 import warnings
 import joblib
+import re
+import requests
 
 # Suppress scikit-learn version mismatch warnings gracefully
 try:
@@ -56,13 +58,13 @@ from lockin import calculate_lockin
 # AFC TOOL: DATASET SEARCH
 # ============================================================
 
-def search_dataset(query: str) -> str:
+def search_dataset(query: str, n_results: int = 3) -> str:
     """
     Searches the internal Compile AI dataset for relevant past enterprise blueprints,
     tech stacks, BRD objectives, functional requirements, and effort estimates.
     """
     try:
-        examples = find_similar_examples(raw_input_text=query, limit=3)
+        examples = find_similar_examples(raw_input_text=query, limit=n_results)
         if not examples:
             return "No matching blueprint dataset records found."
 
@@ -193,111 +195,246 @@ def get_classifier():
 
 
 # ============================================================
-# GEMINI CLIENT
+# GEMINI ROUND-ROBIN KEY POOL & CLIENT MANAGER
 # ============================================================
+
+_DEFAULT_GEMINI_KEYS = []
+
+class GeminiKeyRotator:
+    def __init__(self):
+        raw_keys = os.environ.get("GEMINI_API_KEYS", "")
+        if raw_keys:
+            self.keys = [k.strip() for k in raw_keys.split(",") if k.strip()]
+        else:
+            single = os.environ.get("GEMINI_API_KEY", "")
+            self.keys = [single.strip()] if single.strip() else []
+        self.index = 0
+        self.lock = threading.Lock()
+        self.cooldowns = {} # key -> timestamp when available
+
+    def get_current_key(self) -> str:
+        with self.lock:
+            now = time.time()
+            n = len(self.keys)
+            for i in range(n):
+                idx = (self.index + i) % n
+                k = self.keys[idx]
+                if now >= self.cooldowns.get(k, 0):
+                    self.index = idx
+                    return k
+            best = min(self.keys, key=lambda k: self.cooldowns.get(k, 0))
+            self.index = self.keys.index(best)
+            return best
+
+    def rotate_to_next(self, reason: str = "") -> str:
+        with self.lock:
+            failed_key = self.keys[self.index % len(self.keys)]
+            self.cooldowns[failed_key] = time.time() + 60.0
+            old_idx = self.index
+            self.index = (self.index + 1) % len(self.keys)
+            new_key = self.keys[self.index]
+            print(f"[RoundRobin KeyRotator] Key #{old_idx+1} ({failed_key[:12]}...) exhausted ({reason}). Rotated to Key #{self.index+1} ({new_key[:12]}...).")
+            return new_key
+
+    def advance_round_robin(self):
+        with self.lock:
+            self.index = (self.index + 1) % len(self.keys)
+
+    def get_client(self) -> genai.Client:
+        key = self.get_current_key()
+        return genai.Client(api_key=key)
+
+gemini_key_rotator = GeminiKeyRotator()
 
 def get_gemini_client():
-
-    api_key = os.environ.get(
-        "GEMINI_API_KEY"
-    )
-
-    if not api_key:
-
-        raise HTTPException(
-            status_code=500,
-            detail="GEMINI_API_KEY not set"
-        )
-
-    return genai.Client(
-        api_key=api_key
-    )
+    return gemini_key_rotator.get_client()
 
 
 # ============================================================
-# GEMINI RETRY & RESILIENCE RUNNER
+# GROQ HIGH-SPEED BACKUP CLIENT
+# ============================================================
+
+def call_groq_fallback(prompt: str, system_instruction: str = None) -> str:
+    groq_key = os.environ.get("GROQ_API_KEY", "").strip()
+    if not groq_key:
+        return None
+    groq_model = os.environ.get("GROQ_MODEL", "qwen/qwen3.8-27b").strip()
+    messages = []
+    if system_instruction:
+        messages.append({"role": "system", "content": system_instruction})
+    messages.append({"role": "user", "content": prompt})
+
+    try:
+        r = requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={"Authorization": f"Bearer {groq_key}", "Content-Type": "application/json"},
+            json={
+                "model": groq_model,
+                "messages": messages,
+                "temperature": 0.2
+            },
+            timeout=25
+        )
+        if r.ok:
+            data = r.json()
+            return data["choices"][0]["message"]["content"].strip()
+    except Exception as e:
+        print("[Groq Fallback] Error:", e)
+    return None
+
+
+# ============================================================
+# GEMINI RETRY & ROUND-ROBIN RUNNER
 # ============================================================
 
 def generate_with_retry(
-    client,
-    prompt: str,
+    client=None,
+    prompt: str = "",
     preferred_model: str = None,
     tools: list = None,
-    max_retries: int = 3,
+    max_retries: int = 2,
     system_instruction: str = None
 ):
     """
-    Executes Gemini generation using the recommended client.chats.create pattern
-    with exponential backoff + jitter for transient 503 / 429 quota spikes.
-
-    If tools are provided (such as search_dataset), Gemini dynamically decides whether
-    to invoke automatic function calling (AFC) to query the dataset or answer directly.
+    Executes AI generation across a round-robin pool of Gemini API keys.
+    Automatically rotates to the next API key when rate limits (429), quota exhaustion
+    (RESOURCE_EXHAUSTED), or 503 occur.
+    Falls back to Groq if all Gemini keys are in cooldown.
     """
-    active_preferred = (preferred_model or os.environ.get("GEMINI_MODEL", "gemini-3.8-flash")).strip()
-    # Small, explicitly configured list of verified models: primary first, then verified fallback
-    candidate_models = [active_preferred]
-    if "gemini-3.5-flash" not in candidate_models:
-        candidate_models.append("gemini-3.5-flash")
+    active_preferred = (preferred_model or os.environ.get("GEMINI_MODEL", "gemini-3.5-flash")).strip()
+    candidate_models = []
+    for m in [active_preferred, "gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-3.8-flash"]:
+        if m and m not in candidate_models:
+            candidate_models.append(m)
 
+    num_keys = len(gemini_key_rotator.keys)
     last_error = None
 
-    for model_name in candidate_models:
-        for attempt in range(max_retries):
-            try:
-                # Use client.chats.create recommended pattern for AFC & robust execution
-                config_kwargs = {}
-                if tools:
-                    config_kwargs["tools"] = tools
-                if system_instruction:
-                    config_kwargs["system_instruction"] = system_instruction
+    # Loop through the round-robin key pool
+    for key_attempt in range(num_keys):
+        current_api_key = gemini_key_rotator.get_current_key()
+        active_client = genai.Client(api_key=current_api_key)
 
-                config = types.GenerateContentConfig(**config_kwargs) if config_kwargs else None
+        for model_name in candidate_models:
+            is_exhausted = False
+            for attempt in range(max_retries):
+                try:
+                    config_kwargs = {}
+                    if tools:
+                        config_kwargs["tools"] = tools
+                    if system_instruction:
+                        config_kwargs["system_instruction"] = system_instruction
 
-                chat = client.chats.create(
-                    model=model_name,
-                    config=config
-                )
-                response = chat.send_message(prompt)
-                if response and response.text:
-                    return response.text.strip()
-            except Exception as e:
-                err_str = str(e)
-                last_error = e
-                # Check for 503 / UNAVAILABLE / high demand / rate limit / 429
-                is_transient = any(
-                    code in err_str
-                    for code in ["503", "UNAVAILABLE", "ResourceExhausted", "high demand", "429", "RESOURCE_EXHAUSTED", "temporarily unavailable"]
-                )
-                if is_transient and attempt < max_retries - 1:
-                    # Exponential backoff with random jitter to prevent thundering-herd collisions
-                    # attempt 0: ~2.2s - 2.8s, attempt 1: ~4.2s - 5.0s, attempt 2: ~8.2s - 9.2s
-                    base_delay = 2.0
-                    jitter = random.uniform(0.2, 0.9)
-                    delay = (base_delay * (2 ** attempt)) + jitter
-                    print(f"Gemini {model_name} transient 503/load spike: {err_str[:60]}... Retrying in {delay:.2f}s with jitter (attempt {attempt + 1}/{max_retries})...")
-                    time.sleep(delay)
-                    continue
-                else:
-                    # Model not available or retries exhausted for this candidate, try fallback
-                    print(f"Gemini model {model_name} attempt failed: {err_str[:80]}. Checking configured fallback...")
-                    break
+                    config = types.GenerateContentConfig(**config_kwargs) if config_kwargs else None
 
-    raise last_error or Exception("Gemini generation failed across all retry attempts and fallback models.")
+                    chat = active_client.chats.create(
+                        model=model_name,
+                        config=config
+                    )
+                    response = chat.send_message(prompt)
+                    if response and response.text:
+                        gemini_key_rotator.advance_round_robin()
+                        return response.text.strip()
+                except Exception as e:
+                    err_str = str(e)
+                    last_error = e
+
+                    is_exhausted = any(
+                        code in err_str
+                        for code in ["429", "ResourceExhausted", "RESOURCE_EXHAUSTED", "QuotaExceeded", "quota", "exhausted", "503", "UNAVAILABLE", "high demand", "ReadTimeout"]
+                    )
+                    if is_exhausted:
+                        # Try fallback model on this key before giving up
+                        break
+                    else:
+                        print(f"[Gemini] Error on model {model_name}: {err_str[:80]}")
+                        break
+
+        # If all candidate models on this key were exhausted, rotate key in pool
+        gemini_key_rotator.rotate_to_next(reason="Candidate models rate-limited/cooling down on this key")
+
+    # If all Gemini keys in pool were exhausted, attempt Groq fallback
+    print("[KeyRotator] All Gemini keys currently exhausted/cooling down. Triggering Groq fallback...")
+    groq_reply = call_groq_fallback(prompt, system_instruction)
+    if groq_reply:
+        print("[Groq] Fallback successful!")
+        return groq_reply
+
+    raise last_error or Exception("Gemini generation failed across all keys and fallback models.")
 
 
 # ============================================================
-# LANGUAGE DETECTION
+# MULTILINGUAL ROUTING & DETECTION
 # ============================================================
+
+LANGUAGE_NAMES = {
+    "en": "English",
+    "hi": "Hindi",
+    "gu": "Gujarati",
+    "es": "Spanish",
+    "fr": "French",
+    "de": "German",
+    "mr": "Marathi",
+    "ta": "Tamil",
+    "te": "Telugu",
+    "bn": "Bengali",
+    "pa": "Punjabi",
+    "kn": "Kannada",
+    "ml": "Malayalam",
+    "ur": "Urdu",
+    "ar": "Arabic",
+    "zh": "Chinese",
+    "ja": "Japanese",
+    "ru": "Russian",
+    "pt": "Portuguese",
+    "it": "Italian",
+}
+
+def detect_language_name(text: str, fallback_language: str = "English") -> str:
+    """
+    Accurately detects user language, handling Indic scripts (Devanagari, Gujarati),
+    Romanized Hinglish/Gujlish, and standard ISO-639-1 language codes.
+    """
+    resolved_fallback = LANGUAGE_NAMES.get(str(fallback_language).lower(), fallback_language) if fallback_language else "English"
+    if not text or not text.strip():
+        return resolved_fallback or "English"
+
+    s = text.strip()
+
+    # 1. Unicode script detection
+    if any('\u0A80' <= c <= '\u0AFF' for c in s):
+        return "Gujarati"
+    if any('\u0900' <= c <= '\u097F' for c in s):
+        return "Hindi"
+
+    # 2. Romanized keywords
+    lower_words = set(re.findall(r'\b\w+\b', s.lower()))
+    hinglish_kw = {
+        "kya", "kaise", "chahiye", "karo", "kare", "karna", "karne", "banao", "ke", "ki", "ka", "ko",
+        "liye", "hoga", "hogi", "honge", "mujhe", "hum", "hume", "hame", "batao", "bataiye", "hai", "hain",
+        "ho", "sakti", "sakta", "sakte", "h", "nahi", "hota", "hoti", "hote", "bhi", "aur", "toh", "ye",
+        "yeh", "wo", "woh", "iss", "is", "iska", "iski", "iske", "kitna", "kitni", "kitne", "kyu", "kyun",
+        "kab", "kahan", "yaha", "yahan", "waha", "wahan", "sirf", "sab", "sabhi", "kuch"
+    }
+    if len(lower_words.intersection(hinglish_kw)) >= 2 or any(w in lower_words for w in ["kya", "kaise", "kitna", "kitni", "kitne", "kyu", "kyun", "batao", "bataiye", "chahiye"]):
+        return "Hindi"
+
+    gujlish_kw = {
+        "kem", "karvanu", "chhe", "che", "mate", "joie", "aapo", "tamare", "nathi", "shu", "su",
+        "kare", "karyu", "na", "ne", "thi", "ma", "pan", "haveli", "ketlu", "ketla", "kyare", "kyan"
+    }
+    if len(lower_words.intersection(gujlish_kw)) >= 2 or any(w in lower_words for w in ["kem", "chhe", "karvanu", "ketlu", "ketla", "shu"]):
+        return "Gujarati"
+
+    # 3. Standard langdetect library
+    try:
+        iso_code = detect(s)
+        return LANGUAGE_NAMES.get(iso_code, resolved_fallback or "English")
+    except Exception:
+        return resolved_fallback or "English"
 
 def detect_language(text: str):
-
-    try:
-
-        return detect(text)
-
-    except Exception:
-
-        return "unknown"
+    return detect_language_name(text)
 
 
 # ============================================================
@@ -421,8 +558,8 @@ Text:
         translated_text = generate_with_retry(
             client=client,
             prompt=prompt,
-            preferred_model=os.environ.get("GEMINI_MODEL", "gemini-3.8-flash"),
-            max_retries=3
+            preferred_model=os.environ.get("GEMINI_MODEL", "gemini-3.5-flash"),
+            max_retries=2
         )
         return TranslateResponse(translated_text=translated_text)
     except Exception as e:
@@ -457,6 +594,9 @@ class DiscoverResponse(BaseModel):
 def discover(req: DiscoverRequest):
 
     client = get_gemini_client()
+    target_language = detect_language_name(req.raw_input_text, fallback_language=req.user_language or "English")
+    if target_language == "English" and req.user_language and req.user_language.lower() != "english":
+        target_language = req.user_language
 
     prompt = f"""
 You are a business requirements consultant.
@@ -477,7 +617,8 @@ Focus ONLY on information that is genuinely missing, such as:
 
 Do NOT ask questions whose answers are already clearly present.
 
-Write the questions in {req.user_language}.
+MANDATORY LANGUAGE:
+Write the questions strictly in {target_language}.
 
 Return ONLY the questions, one question per line.
 Do not number them.
@@ -491,13 +632,33 @@ Client requirement:
         raw_text = generate_with_retry(
             client=client,
             prompt=prompt,
-            preferred_model=os.environ.get("GEMINI_MODEL", "gemini-3.8-flash"),
-            max_retries=3
+            preferred_model=os.environ.get("GEMINI_MODEL", "gemini-3.5-flash"),
+            max_retries=2
         )
     except Exception as e:
         print("Discover Gemini call failed after retries:", e)
 
     if not raw_text:
+        if target_language == "Hindi":
+            return DiscoverResponse(
+                questions=[
+                    "इस प्रणाली के साथ दैनिक रूप से कौन से प्रमुख हितधारक और उपयोगकर्ता भूमिकाएं काम करेंगी?",
+                    "इस समाधान को किन मौजूदा डेटाबेस, स्प्रेडशीट या ईआरपी उपकरणों के साथ एकीकृत होना चाहिए?",
+                    "आपके संगठन पर कौन से विशिष्ट अनुपालन, डेटा सुरक्षा या नियामक नियम लागू होते हैं?",
+                    "इस पहल के लिए आपकी लक्षित समयसीमा और आवंटित बजट क्या है?",
+                    "90 दिनों में कौन से मापने योग्य परिचालन मेट्रिक्स इस परियोजना की सफलता को परिभाषित करते हैं?"
+                ]
+            )
+        elif target_language == "Gujarati":
+            return DiscoverResponse(
+                questions=[
+                    "આ સિસ્ટમ સાથે દરરોજ કયા મુખ્ય હિતધારકો અને વપરાશકર્તા ભૂમિકાઓ ક્રિયાપ્રતિક્રિયા કરશે?",
+                    "આ સોલ્યુશન કયા હાલના ડેટાબેસેસ, સ્પ્રેડશીટ્સ અથવા ERP સાધનો સાથે સંકલિત થવું જોઈએ?",
+                    "તમારા સંગઠન પર કયા ચોક્કસ પાલન, ગોપનીયતા અથવા સુરક્ષા નિયમો લાગુ પડે છે?",
+                    "આ પહેલ માટે તમારી લક્ષિત રોલઆઉટ સમયરેખા અને ફાળવેલ બજેટ શું છે?",
+                    "90 દિવસમાં કયા માપી શકાય તેવા ઓપરેશનલ મેટ્રિક્સ આ પ્રોજેક્ટની સફળતાને વ્યાખ્યાયિત કરે છે?"
+                ]
+            )
         return DiscoverResponse(
             questions=[
                 "What key stakeholders and user roles will interact with this system daily?",
@@ -566,6 +727,11 @@ class ConsultantChatResponse(BaseModel):
 def consultant_chat(req: ConsultantChatRequest):
     client = get_gemini_client()
 
+    # Determine accurate target language based on user message and user_language setting
+    resolved_user_lang = LANGUAGE_NAMES.get(str(req.user_language).lower(), req.user_language) if req.user_language else "English"
+    detected_lang = detect_language_name(req.message, fallback_language=resolved_user_lang)
+    target_language = detected_lang if detected_lang != "English" else resolved_user_lang
+
     # Build context summary
     context_text = req.raw_input_text.strip() or req.context_goals.strip()
     if not context_text:
@@ -601,9 +767,28 @@ Recent Conversation Context:
 Client Inquiry / Prompt:
 "{req.message}"
 
+MANDATORY MULTILINGUAL INSTRUCTION:
+The client is communicating in: {target_language}.
+You MUST generate your ENTIRE response, analysis, headings, and data in: {target_language}.
+- If {target_language} is Hindi (हिंदी), generate your response in natural Hindi or Hinglish (retaining standard technical terms like React, PostgreSQL, Docker, AWS in English for enterprise clarity).
+- If {target_language} is Gujarati (ગુજરાતી), generate your response in Gujarati (retaining standard technical terms in English).
+- If {target_language} is Spanish (Español), all content must be in Spanish.
+- Core technical terms (e.g. PostgreSQL, Redis, React, Docker, TLS 1.3, JWT, REST API) can remain in English for industry clarity, but all explanations, table descriptions, column headers, and structural advice MUST be written in {target_language}.
+
+CRITICAL GROUNDING IN CLIENT-PROVIDED DATA:
+You MUST directly base your generated analysis, specifications, numbers, and recommendations on ALL the data the client has already provided!
+1. Check "Answered Discovery Clarifications" and "Core Business Requirements & Scope" above:
+   The client has provided concrete operational details (e.g. timelines, budgets, compliance policies, 90-day operational metrics, integration systems, and user roles).
+2. Explicitly synthesize their data into your response:
+   - When asked about Cost / Timeline / Effort: Calculate the cost and resource allocation specifically based on their stated MVP timeline (e.g. 8–12 weeks), their required integrations (e.g. SharePoint, Google Drive, internal databases, ERPs), their security scope (strict RBAC, document-level permissions, audit logging), and their user roles (employees, managers, HR, compliance, IT admins).
+   - When asked about Architecture / Tech Stack: Select and configure components tailored to their document ingestion pipeline, semantic search needs, and RBAC requirements.
+   - When asked about Requirements / Success Metrics: Directly incorporate and build upon their 90-day success criteria (answer accuracy, citation correctness, retrieval latency, user adoption, reduced repetitive support).
+3. Explicitly cite and tie into what the client stated:
+   (e.g., "Based on your requirement for an 8–12 week MVP covering document ingestion, role-based access control, and SharePoint/Drive integrations...").
+4. NEVER output generic detached boilerplate that ignores the client's provided answers and context documents.
+
 INSTRUCTIONS FOR DATA GENERATION & RESPONSE:
-1. The client is asking a specific question or requesting data/deliverables outside the fixed discovery questions.
-2. Provide an authoritative, in-depth, and structured response with REAL, CONCRETE DATA:
+1. Provide an authoritative, in-depth, and structured response with REAL, CONCRETE DATA:
    - If asking for Architecture / Tech Stack: give exact choices for Frontend, Backend, Database, Cloud/Hosting, Caching, and Security with clear technical rationale.
    - If asking for Requirements / Features: give structured functional requirements (FR-X), non-functional requirements (NFR-X), user stories, and acceptance criteria.
    - If asking for Database / Schema / Data Model: provide entity tables, fields with types, primary keys, foreign keys, and relationship descriptions.
@@ -612,28 +797,40 @@ INSTRUCTIONS FOR DATA GENERATION & RESPONSE:
    - If asking for Compliance / Security: provide specific regulatory requirements (HIPAA, SOC 2, GDPR, PCI-DSS) and tangible security controls.
    - If asking for Gap Analysis or Trade-offs: compare Current State vs Desired State with operational and financial impact.
    - If asking an architectural question or advice: give actionable, professional enterprise recommendations with trade-offs.
-3. Format with clean, rich Markdown:
+2. Format with clean, rich Markdown:
    - Use Markdown headings (##, ###)
    - Use Markdown tables (| Column | Column |) for structured comparisons, schemas, and timelines
    - Use bullet points and bold highlights for readability
    - Use code/schema blocks (```) for configuration, schemas, or endpoints
-4. Write in {req.user_language}.
-5. You can invoke the search_dataset tool to search past blueprints from the 105,500-row enterprise dataset for relevant benchmarks and architectural patterns.
 """
 
+    # ── PRIMARY: Pure AI generation (no dataset injection) ──
     reply_text = None
     try:
         reply_text = generate_with_retry(
             client=client,
             prompt=prompt,
-            preferred_model=os.environ.get("GEMINI_MODEL", "gemini-3.8-flash"),
-            tools=[search_dataset],
-            max_retries=3
+            preferred_model=os.environ.get("GEMINI_MODEL", "gemini-3.5-flash"),
+            max_retries=2
         )
     except Exception as e:
         print("Consultant Chat Gemini call failed after retries:", e)
 
-    # Intelligent structured data fallback if Gemini unavailable
+    # ── DATASET FALLBACK: Only reached if ALL AI APIs are exhausted ──
+    if not reply_text:
+        try:
+            dataset_snippet = search_dataset(f"{req.session_title} {req.message}", n_results=3)
+            if dataset_snippet and not dataset_snippet.startswith("No matching") and not dataset_snippet.startswith("Dataset search error"):
+                reply_text = (
+                    f"### Enterprise Dataset Benchmarks\n\n"
+                    f"*AI generation is temporarily unavailable — showing matched records from 105,500 enterprise benchmarks:*\n\n"
+                    f"{dataset_snippet}\n\n"
+                    f"*Please retry in a moment for a full AI-generated response.*"
+                )
+        except Exception as ds_err:
+            print("Dataset fallback also failed:", ds_err)
+
+    # ── KEYWORD FALLBACK: structured template if dataset also failed ──
     if not reply_text:
         classified = classify(ClassifyRequest(text=context_text or req.message))
         ind = classified.get("industry", "Technology")
@@ -865,6 +1062,10 @@ def generate(req: GenerateRequest):
             req.section
         ]
 
+    target_language = detect_language_name(req.raw_input_text, fallback_language=req.user_language or "English")
+    if target_language == "English" and req.user_language and req.user_language.lower() != "english":
+        target_language = req.user_language
+
     context = req.raw_input_text
 
     if req.discovery_answers:
@@ -894,8 +1095,7 @@ Important:
 - Do not invent facts that were not provided.
 - Clearly state assumptions where necessary.
 - The result is advisory and editable.
-- Write the response in {req.user_language}.
-- You can use the search_dataset tool to lookup relevant architecture blueprints, tech stacks, and benchmarks from the dataset whenever needed.
+- MANDATORY LANGUAGE: Write the entire response, section headings, requirements, and recommendations in {target_language}.
 
 Business context:
 {context}
@@ -906,8 +1106,7 @@ Business context:
             section_text = generate_with_retry(
                 client=client,
                 prompt=prompt,
-                preferred_model=os.environ.get("GEMINI_MODEL", "gemini-3.8-flash"),
-                tools=[search_dataset],
+                preferred_model=os.environ.get("GEMINI_MODEL", "gemini-3.5-flash"),
                 max_retries=3
             )
         except Exception as e:

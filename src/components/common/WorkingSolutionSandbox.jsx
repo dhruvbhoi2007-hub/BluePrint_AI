@@ -127,7 +127,7 @@ export default function WorkingSolutionSandbox({
     if (isViewer) {
       setRbacModalMsg({
         title: 'Customization Restricted for Viewer Role',
-        body: 'Users with Viewer role have read-only access. Natural language customization and code generation require Developer or Admin privileges. Please switch your role in the top-right menu.',
+        body: 'Users with Viewer role have read-only access. Natural language customization and code generation require Developer or Admin privileges. Your account role is permanently assigned as Viewer.',
       });
       setRbacModalOpen(true);
       return;
@@ -185,7 +185,7 @@ export default function WorkingSolutionSandbox({
     if (!isAdmin) {
       setRbacModalMsg({
         title: 'Production Deployment Restricted to Admin',
-        body: `Cloud deployment to ${target === 'vercel' ? 'Vercel Edge Network' : 'Render Cloud'} is an administrative production action. You are currently logged in as "${currentRole.toUpperCase()}". ${isDev ? 'As a Developer, you can test and inspect code in this in-browser sandbox.' : 'As a Viewer, you have read-only access.'} To trigger live production deployment, please switch your role to Admin in the top navigation bar.`,
+        body: `Cloud deployment to ${target === 'vercel' ? 'Vercel Edge Network' : 'Render Cloud'} is an administrative production action. You are currently logged in as "${currentRole.toUpperCase()}". ${isDev ? 'As a Developer, you can test and inspect code in this in-browser sandbox.' : 'As a Viewer, you have read-only access.'} Live production cloud deployment requires an account with Administrator privileges.`,
       });
       setRbacModalOpen(true);
       return;

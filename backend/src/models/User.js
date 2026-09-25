@@ -4,7 +4,14 @@ import bcrypt from 'bcryptjs';
 
 export const UserModel = {
   async findByEmail(email) {
-    const rows = await query('SELECT * FROM users WHERE email = ? LIMIT 1', [email]);
+    const rows = await query(
+      `SELECT u.*, w.name as workspace_name, o.name as company
+       FROM users u
+       LEFT JOIN workspaces w ON u.workspace_id = w.id
+       LEFT JOIN organizations o ON w.org_id = o.id
+       WHERE u.email = ? LIMIT 1`,
+      [email]
+    );
     return rows[0] || null;
   },
 

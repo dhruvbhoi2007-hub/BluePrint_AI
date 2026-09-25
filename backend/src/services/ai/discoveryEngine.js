@@ -2,10 +2,10 @@ import { compileAiClient } from './compileAiClient.js';
 import { inputAnalyzer } from './inputAnalyzer.js';
 
 export const discoveryEngine = {
-  async generateQuestions(inputContent = '', existingContext = {}) {
+  async generateQuestions(inputContent = '', existingContext = {}, userLanguage = 'English') {
     try {
       if (await compileAiClient.isHealthy()) {
-        const res = await compileAiClient.discover(inputContent);
+        const res = await compileAiClient.discover(inputContent, userLanguage);
         if (res && res.questions && Array.isArray(res.questions) && res.questions.length > 0) {
           return res.questions.slice(0, 7);
         }

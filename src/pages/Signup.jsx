@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Navbar from '../components/layout/Navbar';
 import { Button, Icon, Spinner } from '../components/common/ui';
-import { setStoredToken, setStoredUser, markNewAccountPendingOnboarding } from '../utils/cookieUtils';
+import { setStoredToken, setStoredUser, setUserRole, markNewAccountPendingOnboarding } from '../utils/cookieUtils';
 
 /* ─── Icon paths ─── */
 const ZAP    = 'M13 2L3 14h9l-1 8 10-12h-9l1-8z';
@@ -110,13 +110,50 @@ function OrDivider({ label }) {
 ════════════════════════════════════ */
 export default function Signup() {
   const navigate = useNavigate();
-  const [form, setForm] = useState({ name: '', email: '', company: '', password: '', confirm: '' });
+  const [form, setForm] = useState({
+    name: '',
+    email: '',
+    company: '',
+    password: '',
+    confirm: '',
+    role: 'developer', // Default role
+  });
   const [errors, setErrors] = useState({});
   const [showPw, setShowPw] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [globalError, setGlobalError] = useState('');
   const [agreed, setAgreed] = useState(false);
+
+  const ROLE_OPTIONS = [
+    {
+      id: 'admin',
+      label: 'Admin',
+      badge: 'Full Access',
+      badgeColor: '#b45309',
+      badgeBg: '#fef3c7',
+      icon: '🛡️',
+      desc: 'Architectures, SOP intake, team RBAC policies, and cloud sandbox deployment.',
+    },
+    {
+      id: 'developer',
+      label: 'Developer',
+      badge: 'Builder Access',
+      badgeColor: '#047857',
+      badgeBg: '#d1fae5',
+      icon: '💻',
+      desc: 'Build blueprints, upload SOPs, interactive discovery chat, and section regeneration.',
+    },
+    {
+      id: 'viewer',
+      label: 'Viewer',
+      badge: 'Read-Only',
+      badgeColor: '#475569',
+      badgeBg: '#f1f5f9',
+      icon: '👁️',
+      desc: 'Read-only access: View diagrams, inspect cloud topologies, and export documents.',
+    },
+  ];
 
   const set = (field) => (e) => setForm(f => ({ ...f, [field]: e.target.value }));
 
@@ -145,11 +182,21 @@ export default function Signup() {
       const res = await fetch('http://localhost:5000/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: form.name, email: form.email, company: form.company, password: form.password }),
+        body: JSON.stringify({
+          name: form.name,
+          email: form.email,
+          company: form.company,
+          password: form.password,
+          role: form.role,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Registration failed');
       setStoredToken(data.token);
+      setStoredUser(data.user);
+      if (data.user?.role) {
+        setUserRole(data.user.role);
+      }
       markNewAccountPendingOnboarding({ ...data.user, onboardingCompleted: false });
       navigate('/onboarding');
     } catch (err) {
@@ -245,7 +292,61 @@ export default function Signup() {
                     onChange={set('email')} placeholder="jordan@company.com" error={errors.email} icon={MAIL} />
                   <Field label="Company / Organization" id="company" value={form.company}
                     onChange={set('company')} placeholder="Acme Innovations (optional)" icon={BUILD}
-                    hint="First user to register for a company becomes Owner; others join as Members." />
+                    hint="Enter your enterprise organization or workspace name." />
+                </div>
+
+                {/* Role-Based Access Control Selection */}
+                <div className="mb-5">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-sm font-semibold text-foreground">
+                      Workspace Role <span className="text-primary font-bold">*</span>
+                    </label>
+                    <span className="text-[11px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded tracking-wide uppercase">
+                      RBAC Security
+                    </span>
+                  </div>
+                  <p className="text-[12px] text-muted-foreground mb-2.5">
+                    Select your assigned role (you can switch in settings anytime):
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                    {ROLE_OPTIONS.map((r) => {
+                      const isSelected = form.role === r.id;
+                      return (
+                        <button
+                          key={r.id}
+                          type="button"
+                          onClick={() => setForm(f => ({ ...f, role: r.id }))}
+                          className={[
+                            'relative flex flex-col p-3 rounded-[var(--radius)] border text-left cursor-pointer transition-all duration-150',
+                            isSelected
+                              ? 'border-indigo-500 bg-indigo-50/40 ring-2 ring-indigo-500/20 shadow-sm'
+                              : 'border-border bg-card hover:border-indigo-300 hover:bg-slate-50/60',
+                          ].join(' ')}
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-lg">{r.icon}</span>
+                            {isSelected ? (
+                              <span className="w-4 h-4 rounded-full bg-indigo-600 flex items-center justify-center text-white">
+                                <Icon d={CHECK} size={10} color="#fff" />
+                              </span>
+                            ) : (
+                              <span className="w-4 h-4 rounded-full border border-slate-300" />
+                            )}
+                          </div>
+                          <div className="text-[13px] font-bold text-foreground">{r.label}</div>
+                          <span
+                            className="text-[9.5px] font-bold px-1.5 py-0.5 rounded mt-0.5 mb-1 inline-block w-fit"
+                            style={{ color: r.badgeColor, background: r.badgeBg }}
+                          >
+                            {r.badge}
+                          </span>
+                          <p className="text-[10.5px] text-muted-foreground leading-snug m-0">
+                            {r.desc}
+                          </p>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 <div>

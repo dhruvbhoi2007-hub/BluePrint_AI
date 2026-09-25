@@ -1019,6 +1019,35 @@ export function generateDynamicBlueprintArtifacts(session = {}, brd = {}, archit
     defaultSvc: profile.cloudServices[0],
   };
 
+  // 8. Dynamic Working Prototype Specification (Round-Robin Ready)
+  const dynamicPrototype = {
+    appName: `${title} Working Prototype`,
+    appSummary: `Interactive working solution prototype with live search, records, and action triggers for ${title}.`,
+    entityName: profile.entityName,
+    columnLabels: profile.columnLabels,
+    stats: [
+      { label: 'Active Volume', value: '18,420', trend: '+14.2%', color: '#38bdf8' },
+      { label: 'System SLA', value: '99.98%', trend: 'Nominal', color: '#34d399' },
+      { label: 'Pending Approvals', value: '3', trend: '-1 today', color: '#f59e0b' },
+      { label: 'Ingress Latency', value: '12ms', trend: 'Sub-50ms', color: '#a855f7' }
+    ],
+    records: profile.sandboxRecords,
+    filters: ['All', 'Approved', 'In Review', 'Pending'],
+    actions: [
+      { id: 'act-create', label: 'Create New Record', type: 'primary' },
+      { id: 'act-sync', label: 'Trigger Sync Pipeline', type: 'secondary' },
+      { id: 'act-export', label: 'Export Telemetry CSV', type: 'secondary' }
+    ],
+    codeSnippet: `// Interactive React Prototype Component\nexport default function WorkingPrototype() {\n  return (\n    <div className="p-6 bg-slate-900 text-white rounded-xl">\n      <h2 className="text-xl font-bold">${title} Prototype</h2>\n      <p className="text-slate-400">Live operational sandbox</p>\n    </div>\n  );\n}`,
+    cloudDeploy: {
+      recommendedVercel: true,
+      recommendedRender: true,
+      framework: 'React 19 + Tailwind CSS'
+    },
+    provider: 'Google Gemini & Groq (Round-Robin Dual Engine)',
+    modelUsed: 'gemini-3.1-flash-lite / qwen3.8-27b',
+  };
+
   return {
     dynamicArchChart,
     dynamicBpmnChart,
@@ -1027,6 +1056,7 @@ export function generateDynamicBlueprintArtifacts(session = {}, brd = {}, archit
     dynamicApiEndpoints,
     dynamicWireframes,
     dynamicSandboxData,
+    dynamicPrototype,
     bpmnSteps: profile.bpmnSteps,
   };
 }

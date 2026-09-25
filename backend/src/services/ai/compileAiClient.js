@@ -131,4 +131,27 @@ export const compileAiClient = {
     }
     return await res.json();
   },
+
+  async translate(text, targetLang = 'English') {
+    if (!text || typeof text !== 'string' || !text.trim() || targetLang.toLowerCase() === 'english') {
+      return text;
+    }
+    try {
+      const res = await fetch(`${this.baseUrl}/translate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text,
+          target_lang: targetLang,
+        }),
+      });
+      if (!res.ok) return text;
+      const data = await res.json();
+      return data.translated_text || text;
+    } catch (err) {
+      console.warn('Compile AI translation error:', err.message);
+      return text;
+    }
+  },
 };
+

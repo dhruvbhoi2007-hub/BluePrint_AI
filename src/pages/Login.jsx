@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import Navbar from '../components/layout/Navbar';
 import { Button, Card, GradientText, Icon, Spinner } from '../components/common/ui';
 import {
-  setStoredToken, setStoredUser, getStoredUser,
+  setStoredToken, setStoredUser, getStoredUser, setUserRole,
   markOnboardingCompleted, getOnboardingData,
 } from '../utils/cookieUtils';
 
@@ -98,6 +98,8 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [globalError, setGlobalError] = useState('');
 
+  const [loginSuccess, setLoginSuccess] = useState(null);
+
   const set = (field) => (e) => setForm(f => ({ ...f, [field]: e.target.value }));
 
   const validate = () => {
@@ -134,8 +136,23 @@ export default function Login() {
         onboardingCompleted: true,
       };
       setStoredUser(mergedUser);
+      if (data.user?.role) {
+        setUserRole(data.user.role);
+      }
       markOnboardingCompleted(mergedUser);
-      navigate('/dashboard');
+
+      // Specify that this role belongs to this user ID
+      const userRole = (data.user.role || 'developer').toUpperCase();
+      setLoginSuccess({
+        role: userRole,
+        userId: data.user.id,
+        name: data.user.name,
+      });
+
+      // Brief transition so the user explicitly sees the role and user ID specification
+      setTimeout(() => {
+        navigate('/dashboard');
+      }, 750);
     } catch (err) {
       setGlobalError(err.message || 'Backend connection error. Make sure backend is running on port 5000.');
     } finally {
@@ -181,6 +198,24 @@ export default function Login() {
               <div className="flex items-start gap-2.5 p-3.5 rounded-[var(--radius)] bg-destructive/10 border border-destructive/25 mb-5">
                 <Icon d={WARN} size={15} color="hsl(var(--destructive))" className="shrink-0 mt-0.5" />
                 <p className="text-destructive text-[13px] leading-relaxed">{globalError}</p>
+              </div>
+            )}
+
+            {/* Role Verification Success Banner */}
+            {loginSuccess && (
+              <div className="flex items-start gap-3 p-3.5 rounded-[var(--radius)] bg-emerald-50 border border-emerald-300 text-emerald-950 mb-5 shadow-sm">
+                <span className="text-xl">🛡️</span>
+                <div className="min-w-0 flex-1">
+                  <div className="font-bold text-[13px] text-emerald-950">
+                    Authentication Verified
+                  </div>
+                  <div className="text-[12px] text-emerald-800 mt-0.5 leading-snug">
+                    Role <strong className="font-extrabold text-emerald-900">{loginSuccess.role}</strong> belongs to User ID:
+                  </div>
+                  <div className="font-mono text-[11px] font-bold text-emerald-950 bg-emerald-100/70 border border-emerald-200/80 px-2 py-0.5 rounded mt-1 break-all">
+                    {loginSuccess.userId}
+                  </div>
+                </div>
               </div>
             )}
 

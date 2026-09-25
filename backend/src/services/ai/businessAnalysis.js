@@ -3,7 +3,7 @@ import { inputAnalyzer } from './inputAnalyzer.js';
 import { llmClient } from './llmClient.js';
 
 export const businessAnalysis = {
-  async generateBrd({ rawInput = '', context = {}, answeredQa = [] }) {
+  async generateBrd({ rawInput = '', context = {}, answeredQa = [], userLanguage = 'English' }) {
     const analysis = await inputAnalyzer.analyze(rawInput, context);
     const qaMap = {};
     for (const item of answeredQa || []) {
@@ -14,12 +14,25 @@ export const businessAnalysis = {
 
     try {
       if (await compileAiClient.isHealthy()) {
-        const sections = await compileAiClient.generate(rawInput, qaMap, 'brd');
+        const sections = await compileAiClient.generate(rawInput, qaMap, 'brd', userLanguage);
         if (Array.isArray(sections) && sections.length > 0 && sections[0].content) {
           const content = sections[0].content;
+
+          // Intelligently extract Objectives and Scope sections from the generated markdown
+          const objMatch = content.match(/(?:##?\s*(?:1\.\s*)?Executive Objectives[\r\n]+)([\s\S]*?)(?=##?\s*(?:2\.\s*)?Scope|\n##|\n#|$)/i);
+          const scopeMatch = content.match(/(?:##?\s*(?:2\.\s*)?Scope[\r\n]+)([\s\S]*?)(?=##?\s*(?:3\.\s*)?Functional|\n##|\n#|$)/i);
+
+          const parsedObjectives = (objMatch && objMatch[1].trim().length > 30)
+            ? objMatch[1].trim()
+            : `### Primary Transformation Objective\nAutomate and digitise ${analysis.problemTitle} for ${analysis.industry}.\n\n### Strategic Business Outcomes & KPIs\n- **Operational Efficiency**: 70%+ reduction in processing latency and manual intervention.\n- **Data Governance**: Normalized schemas and automated audit trail tracking.\n- **High Availability**: Resilient cloud-native microservices with 99.5% uptime SLA.`;
+
+          const parsedScope = (scopeMatch && scopeMatch[1].trim().length > 30)
+            ? scopeMatch[1].trim()
+            : `- **In-Scope**: Intake automation, status tracking, role-based access, and legacy tool integration.\n- **Out-of-Scope**: Bespoke physical infrastructure overhaul.`;
+
           return {
-            objectives: `Transform ${analysis.problemTitle} for ${analysis.industry}`,
-            scope: content,
+            objectives: parsedObjectives,
+            scope: parsedScope,
             stakeholdersList: analysis.stakeholders || ['CTO', 'Operations Lead'],
             gapAnalysis: [
               { area: 'Operational Bottlenecks', impact: 'High', gap: 'Manual steps vs automated digital workflow' },
@@ -50,8 +63,8 @@ export const businessAnalysis = {
     }
 
     return {
-      objectives: `Eliminate manual handling of ${analysis.problemTitle} in ${analysis.industry}`,
-      scope: `In-Scope: Core automation of ${analysis.problemTitle}, integration with legacy spreadsheets/ERPs, stakeholder dashboards. Out-of-Scope: Bespoke legacy hardware changes.`,
+      objectives: `### Primary Transformation Objective\nAutomate and digitise ${analysis.problemTitle} for ${analysis.industry}.\n\n### Strategic Business Outcomes & KPIs\n- **Operational Efficiency**: 70%+ reduction in processing latency and manual intervention.\n- **Data Governance**: Normalized schemas and automated audit trail tracking.\n- **High Availability**: Resilient cloud-native microservices with 99.5% uptime SLA.`,
+      scope: `### In-Scope Core Capabilities\n- Intake automation, status tracking, role-based access, and legacy integration for ${analysis.problemTitle}.\n- Automated rule execution, multi-tier approvals, and REST API integration endpoints.\n- Live operational dashboards for key business stakeholders.\n\n### Out-of-Scope Boundaries\n- Bespoke physical infrastructure overhaul or hardware decommissioning.\n- Custom non-standard third-party integrations outside the target scope.`,
       stakeholdersList: analysis.stakeholders || ['CTO', 'Operations Lead'],
       gapAnalysis: [
         { area: 'Operational Bottlenecks', impact: 'High', gap: 'Current manual steps cause delay. Desired state: Automated pipeline.' }

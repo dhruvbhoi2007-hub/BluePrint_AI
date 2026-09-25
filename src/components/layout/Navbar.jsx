@@ -133,7 +133,7 @@ export default function Navbar() {
     ? 'text-amber-700 bg-amber-50 border-amber-200'
     : 'text-sky-700 bg-sky-50 border-sky-200';
 
-  const roleEmoji = { admin: '👑', developer: '💻', viewer: '👁️' }[userRole] || '👤';
+  // const roleEmoji = { admin: '👑', developer: '💻', viewer: '👁️' }[userRole] || '👤';
 
   const languages = [
     { code: 'en', label: '🇬🇧 EN' },
@@ -208,7 +208,7 @@ export default function Navbar() {
                 {languages.map(l => <option key={l.code} value={l.code}>{l.label}</option>)}
               </Pill>
 
-              <Pill className="pl-2.5 pr-1" title="Switch user role (testing control)">
+              {/* <Pill className="pl-2.5 pr-1" title="Switch user role (testing control)">
                 <Icon d={SHIELD} size={12} color="#94a3b8" className="mr-1.5" />
                 <select
                   value={userRole}
@@ -223,7 +223,7 @@ export default function Navbar() {
                   <option value="developer">💻 Developer</option>
                   <option value="viewer">👁️ Viewer</option>
                 </select>
-              </Pill>
+              </Pill> */}
 
               <span className="w-px h-5 bg-slate-200" />
             </div>
@@ -241,17 +241,42 @@ export default function Navbar() {
             {currentUser ? (
               /* Authenticated state */
               <div className="flex items-center gap-2">
-                <div className="h-9 flex items-center gap-2 pl-1 pr-3 rounded-full border border-slate-200/80 bg-white/70 backdrop-blur shadow-[0_1px_3px_rgba(15,23,42,0.04)] max-w-[160px]">
+                {/* Specific Role belongs to ID Capsule */}
+                <div
+                  className="h-9 hidden md:flex items-center gap-1.5 px-2.5 rounded-full border border-indigo-200/90 bg-indigo-50/70 backdrop-blur shadow-[0_1px_3px_rgba(99,102,241,0.06)]"
+                  title={`Security Assertion: Role '${userRole.toUpperCase()}' strictly belongs to User ID '${currentUser.id || 'N/A'}'`}
+                >
+                  <span className="text-[11px] font-semibold text-slate-500">ID:</span>
+                  <span className="font-mono text-[11px] font-bold text-indigo-700 max-w-[85px] truncate">
+                    {currentUser.id ? currentUser.id.slice(0, 8) + '...' : 'User'}
+                  </span>
+                  <span className="text-slate-300">→</span>
+                  <span className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded tracking-[0.3px] uppercase ${userRole === 'admin'
+                    ? 'text-amber-800 bg-amber-100 border border-amber-300'
+                    : userRole === 'developer'
+                      ? 'text-emerald-800 bg-emerald-100 border border-emerald-300'
+                      : 'text-slate-700 bg-slate-200 border border-slate-300'
+                    }`}>
+                    {userRole}
+                  </span>
+                </div>
+
+                <div
+                  onClick={() => navigate('/settings')}
+                  className="h-9 flex items-center gap-2 pl-1 pr-3 rounded-full border border-slate-200/80 bg-white/70 backdrop-blur shadow-[0_1px_3px_rgba(15,23,42,0.04)] cursor-pointer hover:border-indigo-300 transition-colors"
+                  title={`Logged in as ${currentUser.name}. Role: ${userRole.toUpperCase()} belongs to User ID: ${currentUser.id}`}
+                >
                   <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-500 to-cyan-500 text-white font-extrabold text-[12px] flex items-center justify-center shrink-0 shadow-[0_0_0_2px_rgba(99,102,241,0.18)]">
                     {userInitial}
                   </div>
                   <div className="flex flex-col leading-none min-w-0">
-                    <span className="text-[12px] font-bold text-slate-900 truncate">{currentUser.name || 'User'}</span>
-                    <span className={`text-[9.5px] font-bold mt-0.5 tracking-[0.3px] ${userRole === 'admin' ? 'text-amber-600' : userRole === 'developer' ? 'text-indigo-600' : 'text-slate-500'}`}>
-                      {userRole.toUpperCase()}
+                    <span className="text-[12px] font-bold text-slate-900 truncate max-w-[110px]">{currentUser.name || 'User'}</span>
+                    <span className="text-[9.5px] font-bold text-slate-400 truncate max-w-[110px] font-mono">
+                      ID: {currentUser.id ? currentUser.id.slice(0, 6) : 'guest'}
                     </span>
                   </div>
                 </div>
+
                 <button
                   onClick={handleLogout}
                   title="Sign out"
@@ -321,17 +346,31 @@ export default function Navbar() {
             />
 
             {currentUser && (
-              <div className="flex items-center gap-2.5 py-2.5 px-2.5 mb-1.5 rounded-xl bg-slate-50/80 border border-slate-200/70">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-cyan-500 text-white font-extrabold text-[15px] flex items-center justify-center shrink-0 shadow-[0_0_0_2px_rgba(99,102,241,0.18),0_4px_14px_rgba(99,102,241,0.35)]">
-                  {userInitial}
+              <div className="flex flex-col gap-2 py-2.5 px-3 mb-1.5 rounded-xl bg-slate-50/80 border border-slate-200/70">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-cyan-500 text-white font-extrabold text-[15px] flex items-center justify-center shrink-0 shadow-[0_0_0_2px_rgba(99,102,241,0.18),0_4px_14px_rgba(99,102,241,0.35)]">
+                    {userInitial}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="m-0 text-[13.5px] font-bold text-slate-900 leading-tight truncate">{currentUser.name}</p>
+                    <p className="m-0 text-[11px] text-slate-400 overflow-hidden text-ellipsis whitespace-nowrap">{currentUser.company || 'Workspace'}</p>
+                  </div>
+                  <span className={`text-[9.5px] font-bold px-2 py-0.5 rounded-md tracking-[0.3px] border uppercase shrink-0 ${userRole === 'admin'
+                    ? 'text-amber-800 bg-amber-100 border-amber-300'
+                    : userRole === 'developer'
+                      ? 'text-emerald-800 bg-emerald-100 border-emerald-300'
+                      : 'text-slate-700 bg-slate-200 border-slate-300'
+                    }`}>
+                    {userRole}
+                  </span>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="m-0 text-[13.5px] font-bold text-slate-900 leading-tight truncate">{currentUser.name}</p>
-                  <p className="m-0 text-[11px] text-slate-400 overflow-hidden text-ellipsis whitespace-nowrap">{currentUser.company || 'Workspace'}</p>
+                <div className="pt-1.5 border-t border-slate-200/60 flex items-center justify-between text-[11px]">
+                  <span className="text-slate-500 font-medium">User ID:</span>
+                  <span className="font-mono font-bold text-indigo-700 break-all">{currentUser.id || 'N/A'}</span>
                 </div>
-                <span className={`text-[9.5px] font-bold px-1.5 py-0.5 rounded-md tracking-[0.3px] border shrink-0 ${roleBadgeClass}`}>
-                  {currentUser.role === 'owner' ? '★ Owner' : 'Member'}
-                </span>
+                <div className="text-[10px] text-slate-400 italic">
+                  Role {userRole.toUpperCase()} belongs to this ID
+                </div>
               </div>
             )}
 

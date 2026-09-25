@@ -44,7 +44,41 @@ function parseJsonResponse(text) {
   }
 }
 
-// 1. Google Gemini REST API (v1beta)
+let geminiKeyIndex = 0;
+const geminiCooldowns = new Map();
+
+function getGeminiKeyList() {
+  const list = env.GEMINI_API_KEYS && env.GEMINI_API_KEYS.length > 0 ? env.GEMINI_API_KEYS : [env.GEMINI_API_KEY].filter(Boolean);
+  return list;
+}
+
+function getNextGeminiKey() {
+  const keys = getGeminiKeyList();
+  const now = Date.now();
+  for (let i = 0; i < keys.length; i++) {
+    const idx = (geminiKeyIndex + i) % keys.length;
+    const k = keys[idx];
+    if (now >= (geminiCooldowns.get(k) || 0)) {
+      geminiKeyIndex = idx;
+      return k;
+    }
+  }
+  return keys[geminiKeyIndex % keys.length];
+}
+
+function rotateGeminiKey(failedKey, reason = '') {
+  const keys = getGeminiKeyList();
+  if (failedKey) {
+    geminiCooldowns.set(failedKey, Date.now() + 60000);
+  }
+  const oldIdx = geminiKeyIndex;
+  geminiKeyIndex = (geminiKeyIndex + 1) % keys.length;
+  const nextKey = keys[geminiKeyIndex];
+  console.warn(`[Node Multi-LLM] Gemini key #${oldIdx + 1} exhausted (${reason}). Rotated to key #${geminiKeyIndex + 1} (${nextKey ? nextKey.substring(0, 12) : ''}...).`);
+  return nextKey;
+}
+
+// 1. Google Gemini REST API (v1beta) with Round-Robin Key Pool
 async function callGemini({ apiKey, model, systemPrompt, userPrompt, jsonMode }) {
   let targetModel = (model || env.GEMINI_MODEL || 'gemini-3.8-flash').trim();
   const lower = targetModel.toLowerCase();
@@ -60,8 +94,8 @@ async function callGemini({ apiKey, model, systemPrompt, userPrompt, jsonMode })
   }
   const cleanModel = targetModel.replace(/^models\//, '');
 
-  // Small, explicitly configured list of verified models: primary first, then verified fallback
   const candidateModels = Array.from(new Set([cleanModel, 'gemini-3.5-flash']));
+  const keys = getGeminiKeyList();
 
   const body = {
     contents: [
@@ -84,48 +118,60 @@ async function callGemini({ apiKey, model, systemPrompt, userPrompt, jsonMode })
 
   let lastErr = null;
 
-  for (const currentModel of candidateModels) {
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:generateContent?key=${apiKey}`;
-    for (let attempt = 1; attempt <= 2; attempt++) {
-      try {
-        const response = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        });
+  for (let keyAttempt = 0; keyAttempt < keys.length; keyAttempt++) {
+    const currentKey = getNextGeminiKey();
 
-        if (!response.ok) {
-          const errText = await response.text();
-          if ((response.status === 503 || response.status === 429) && attempt < 2) {
-            const jitter = Math.floor(Math.random() * 500) + 200; // 200ms - 700ms jitter
-            const backoff = 1500 * Math.pow(2, attempt - 1) + jitter;
-            console.warn(`[Gemini] Transient ${response.status} on ${currentModel}. Retrying in ${backoff}ms with jitter...`);
-            await new Promise((r) => setTimeout(r, backoff));
+    for (const currentModel of candidateModels) {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:generateContent?key=${currentKey}`;
+      let shouldRotateKey = false;
+
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        try {
+          const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+
+          if (!response.ok) {
+            const errText = await response.text();
+            if (response.status === 429 || response.status === 503) {
+              shouldRotateKey = true;
+              throw new Error(`Gemini API Error [${response.status}] model ${currentModel}: ${errText.substring(0, 200)}`);
+            }
+            throw new Error(`Gemini API Error [${response.status}] model ${currentModel}: ${errText.substring(0, 300)}`);
+          }
+
+          const data = await response.json();
+          const candidate = data.candidates?.[0];
+          if (!candidate) {
+            throw new Error(`Gemini returned no candidates. Prompt feedback: ${JSON.stringify(data.promptFeedback || {})}`);
+          }
+
+          const parts = candidate.content?.parts || [];
+          // Advance round-robin pointer for next call
+          geminiKeyIndex = (geminiKeyIndex + 1) % keys.length;
+          return parts.map((p) => p.text || '').filter(Boolean).join('');
+        } catch (err) {
+          lastErr = err;
+          if (shouldRotateKey) {
+            rotateGeminiKey(currentKey, err.message.substring(0, 60));
+            break;
+          }
+          if (attempt < 2 && (err.message.includes('503') || err.message.includes('429'))) {
+            await new Promise((r) => setTimeout(r, 1200));
             continue;
           }
-          throw new Error(`Gemini API Error [${response.status}] model ${currentModel}: ${errText.substring(0, 300)}`);
+          break;
         }
+      }
 
-        const data = await response.json();
-        const candidate = data.candidates?.[0];
-        if (!candidate) {
-          throw new Error(`Gemini returned no candidates. Prompt feedback: ${JSON.stringify(data.promptFeedback || {})}`);
-        }
-
-        const parts = candidate.content?.parts || [];
-        return parts.map((p) => p.text || '').filter(Boolean).join('');
-      } catch (err) {
-        lastErr = err;
-        if (attempt < 2 && (err.message.includes('503') || err.message.includes('429'))) {
-          await new Promise((r) => setTimeout(r, 1200));
-          continue;
-        }
-        // Try next candidate model if 503 or 404
-        console.warn(`[Gemini] Model ${currentModel} failed (${err.message.substring(0, 100)}). Trying candidate fallback...`);
-        break;
+      if (shouldRotateKey) {
+        break; // break candidateModels to try next key in pool
       }
     }
   }
+
   throw lastErr;
 }
 

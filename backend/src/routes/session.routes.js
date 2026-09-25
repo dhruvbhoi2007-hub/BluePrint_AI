@@ -10,6 +10,9 @@ const upload = multer({
 
 const router = Router();
 
+// Public Live Prototype Webpage Route (accessible directly for iframes & new browser tabs)
+router.get('/:id/prototype/live', sessionController.getLivePrototype);
+
 router.use(authenticateToken);
 
 // Session routes
@@ -33,6 +36,9 @@ router.post('/:id/generate', requireRole('admin', 'developer', 'owner', 'member'
 
 // Single-section regeneration (FR-6.2) - requires generate permission
 router.post('/:id/regenerate/:section', requireRole('admin', 'developer', 'owner', 'member'), sessionController.regenerateSection);
+
+// Multilingual live translation of deliverables
+router.post('/:id/translate', sessionController.translateBlueprint);
 
 // Version history & Rollback (FR-6.4)
 router.get('/:id/versions', sessionController.getVersions);

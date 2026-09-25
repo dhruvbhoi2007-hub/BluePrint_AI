@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Navbar from '../components/layout/Navbar';
 import { getStoredToken } from '../utils/cookieUtils';
+import { useTranslation } from '../utils/i18n';
 
 /* ─── SVG Icons ─── */
 function Icon({ d, size = 18, color = 'currentColor', className = '' }) {
@@ -23,6 +24,7 @@ const PLAN_ICON = 'M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 
 export default function GeneratingScreen() {
   const { id: sessionId } = useParams();
   const navigate = useNavigate();
+  const { currentLanguage } = useTranslation();
 
   // Progress & SLA Timer
   const [progress, setProgress] = useState(12);
@@ -118,6 +120,7 @@ export default function GeneratingScreen() {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
+      body: JSON.stringify({ userLanguage: currentLanguage }),
     })
       .then(async (res) => {
         clearInterval(progressInterval);

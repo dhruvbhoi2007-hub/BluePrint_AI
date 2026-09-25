@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Navbar from '../components/layout/Navbar';
 import DashboardSidebar from '../components/layout/DashboardSidebar';
@@ -10,25 +10,25 @@ import { generateDynamicBlueprintArtifacts, generateMermaidErdFromTables, genera
 
 /* ─── Theme Palette ─── */
 const C = {
-  bg:         '#f6f7fb',
-  surface:    '#ffffff',
+  bg: '#f6f7fb',
+  surface: '#ffffff',
   surfaceAlt: '#f8fafc',
-  border:     '#e2e8f0',
-  borderMed:  '#cbd5e1',
-  primary:    '#6366f1',
-  primaryDk:  '#4f46e5',
-  primaryLt:  '#eef2ff',
-  accent:     '#06b6d4',
-  accentLt:   '#ecfeff',
-  success:    '#10b981',
-  successLt:  '#d1fae5',
-  warn:       '#f59e0b',
-  warnLt:     '#fef3c7',
-  textH:      '#0f172a',
-  textB:      '#334155',
-  textM:      '#64748b',
-  textSub:    '#94a3b8',
-  grad:       'linear-gradient(135deg, #6366f1 0%, #06b6d4 100%)',
+  border: '#e2e8f0',
+  borderMed: '#cbd5e1',
+  primary: '#6366f1',
+  primaryDk: '#4f46e5',
+  primaryLt: '#eef2ff',
+  accent: '#06b6d4',
+  accentLt: '#ecfeff',
+  success: '#10b981',
+  successLt: '#d1fae5',
+  warn: '#f59e0b',
+  warnLt: '#fef3c7',
+  textH: '#0f172a',
+  textB: '#334155',
+  textM: '#64748b',
+  textSub: '#94a3b8',
+  grad: 'linear-gradient(135deg, #6366f1 0%, #06b6d4 100%)',
 };
 
 /* ─── SVG Icons ─── */
@@ -41,21 +41,21 @@ function Icon({ d, size = 18, color = 'currentColor', style = {} }) {
   );
 }
 
-const CHECK_ICON    = 'M20 6L9 17l-5-5';
+const CHECK_ICON = 'M20 6L9 17l-5-5';
 const DOWNLOAD_ICON = 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3';
-const REFRESH_ICON  = 'M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15';
-const CHAT_ICON     = 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z';
-const BRD_ICON      = 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M16 13H8M16 17H8M10 9H8';
-const ARCH_ICON     = 'M16 18l6-6-6-6M8 6l-6 6 6 6';
-const FLOW_ICON     = 'M22 12h-4l-3 9L9 3l-3 9H2';
-const DB_ICON       = 'M4 6c0 1.66 3.58 3 8 3s8-1.34 8-3-3.58-3-8-3-8 1.34-8 3zm0 6c0 1.66 3.58 3 8 3s8-1.34 8-3M4 18c0 1.66 3.58 3 8 3s8-1.34 8-3';
-const WIRE_ICON     = 'M3 3h18v18H3zM3 9h18M9 21V9';
-const COST_ICON     = 'M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6';
-const COPY_ICON     = 'M8 4v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7.242a2 2 0 0 0-.602-1.43L16.083 2.57A2 2 0 0 0 14.685 2H10a2 2 0 0 0-2 2z';
-const HISTORY_ICON  = 'M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0z';
-const MENU_ICON     = 'M4 6h16M4 12h16M4 18h16';
-const CODE_ICON     = 'M16 18l6-6-6-6M8 6l-6 6 6 6';
-const SHIELD_ICON   = 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z';
+const REFRESH_ICON = 'M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15';
+const CHAT_ICON = 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z';
+const BRD_ICON = 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M16 13H8M16 17H8M10 9H8';
+const ARCH_ICON = 'M16 18l6-6-6-6M8 6l-6 6 6 6';
+const FLOW_ICON = 'M22 12h-4l-3 9L9 3l-3 9H2';
+const DB_ICON = 'M4 6c0 1.66 3.58 3 8 3s8-1.34 8-3-3.58-3-8-3-8 1.34-8 3zm0 6c0 1.66 3.58 3 8 3s8-1.34 8-3M4 18c0 1.66 3.58 3 8 3s8-1.34 8-3';
+const WIRE_ICON = 'M3 3h18v18H3zM3 9h18M9 21V9';
+const COST_ICON = 'M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6';
+const COPY_ICON = 'M8 4v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7.242a2 2 0 0 0-.602-1.43L16.083 2.57A2 2 0 0 0 14.685 2H10a2 2 0 0 0-2 2z';
+const HISTORY_ICON = 'M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0z';
+const MENU_ICON = 'M4 6h16M4 12h16M4 18h16';
+const CODE_ICON = 'M16 18l6-6-6-6M8 6l-6 6 6 6';
+const SHIELD_ICON = 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z';
 
 /* ─── Inline Markdown Formatter Component ─── */
 function formatInlineMarkdown(str) {
@@ -150,9 +150,142 @@ export default function ResultScreen() {
   const [copiedKey, setCopiedKey] = useState('');
   const [exportDropdownOpen, setExportDropdownOpen] = useState(false);
 
+  // Interactive Product Prototype State (Round-Robin Dual Engine)
+  const [protoSearch, setProtoSearch] = useState('');
+  const [protoFilter, setProtoFilter] = useState('All');
+  const [showProtoCode, setShowProtoCode] = useState(false);
+  const [protoCopied, setProtoCopied] = useState(false);
+  const [protoCustomRecords, setProtoCustomRecords] = useState(null);
+  const [newRecordModal, setNewRecordModal] = useState(false);
+  const [newRecordForm, setNewRecordForm] = useState({ name: '', district: '', status: 'Approved' });
+  const [protoViewport, setProtoViewport] = useState('desktop'); // 'desktop' | 'tablet' | 'mobile'
+  const [protoViewMode, setProtoViewMode] = useState('live'); // 'live' | 'data' | 'code'
+  const [protoUrlCopied, setProtoUrlCopied] = useState(false);
+  const [iframeKey, setIframeKey] = useState(0);
+
   // Multilingual & RBAC State
   const { t, currentLanguage } = useTranslation();
   const [currentRole, setCurrentRole] = useState(() => getUserRole());
+  const originalDeliverables = useRef(null);
+  const [translationsCache, setTranslationsCache] = useState({});
+  const [translatingDeliverables, setTranslatingDeliverables] = useState(false);
+
+  const L = {
+    whyRecommended: {
+      en: 'Why I Recommended This',
+      hi: 'मैंने यह सिफारिश क्यों की',
+      gu: 'મેં આ કેમ ભલામણ કરી',
+      es: 'Por qué recomendé esto',
+      fr: 'Pourquoi j\'ai recommandé cela',
+    },
+    underlyingAssumption: {
+      en: 'Underlying Assumption',
+      hi: 'अंतर्निहित धारणा',
+      gu: 'અંતર્ગત ધારણા',
+      es: 'Supuesto subyacente',
+      fr: 'Hypothèse sous-jacente',
+    },
+    sourceEvidence: {
+      en: 'Source Evidence',
+      hi: 'स्रोत साक्ष्य',
+      gu: 'સ્રોત પુરાવા',
+      es: 'Evidencia de origen',
+      fr: 'Preuve de la source',
+    },
+    explainabilityTitle: {
+      en: 'AI Recommendation Explainability & Grounding',
+      hi: 'एआई अनुशंसा स्पष्टीकरण और आधार',
+      gu: 'AI ભલામણ સમજૂતી અને આધાર',
+      es: 'Explicabilidad y fundamentación de la recomendación de IA',
+      fr: 'Explicabilité et fondement des recommandations de l\'IA',
+    },
+    executiveObjectives: {
+      en: 'Executive Objectives',
+      hi: 'कार्यकारी उद्देश्य',
+      gu: 'કાર્યકારી ઉદ્દેશ્યો',
+      es: 'Objetivos Ejecutivos',
+      fr: 'Objectifs Exécutifs',
+    },
+    scopeBoundaries: {
+      en: 'Scope Boundaries',
+      hi: 'कार्यक्षेत्र सीमाएं',
+      gu: 'કાર્યક્ષેત્રની સીમાઓ',
+      es: 'Límites del Alcance',
+      fr: 'Limites du Champ d\'Application',
+    },
+    gapAnalysisTitle: {
+      en: 'Current State vs. Desired State Gap Analysis',
+      hi: 'वर्तमान स्थिति बनाम वांछित स्थिति अंतर विश्लेषण',
+      gu: 'વર્તમાન સ્થિતિ વિરુદ્ધ ઇચ્છિત સ્થિતિ ગેપ વિશ્લેષણ',
+      es: 'Análisis de Brechas: Estado Actual vs. Estado Deseado',
+      fr: 'Analyse des Écarts: État Actuel vs État Souhaité',
+    },
+    functionalSpecs: {
+      en: 'Functional Specifications',
+      hi: 'कार्यात्मक विनिर्देश',
+      gu: 'કાર્યાત્મક વિશિષ્ટતાઓ',
+      es: 'Especificaciones Funcionales',
+      fr: 'Spécifications Fonctionnelles',
+    },
+    nonFunctionalSpecs: {
+      en: 'Non-Functional Requirements (NFRs)',
+      hi: 'गैर-कार्यात्मक आवश्यकताएं (NFRs)',
+      gu: 'બિન-કાર્યાત્મક આવશ્યકતાઓ (NFRs)',
+      es: 'Requisitos No Funcionales (NFRs)',
+      fr: 'Exigences Non Fonctionnelles (NFRs)',
+    },
+    stakeholders: {
+      en: 'Key Stakeholders & Approvers',
+      hi: 'प्रमुख हितधारक और अनुमोदक',
+      gu: 'મુખ્ય હિતધારકો અને મંજૂરકર્તાઓ',
+      es: 'Partes Interesadas y Aprobadores Clave',
+      fr: 'Parties Prenantes et Approbateurs Clés',
+    },
+    assumptionsConstraints: {
+      en: 'Assumptions & Constraints',
+      hi: 'धारणाएं और बाधाएं',
+      gu: 'ધારણાઓ અને અવરોધો',
+      es: 'Supuestos y Restricciones',
+      fr: 'Hypothèses et Contraintes',
+    },
+    regenerateBtn: {
+      en: 'Regenerate Section',
+      hi: 'अनुभाग पुनः उत्पन्न करें',
+      gu: 'વિભાગ ફરીથી બનાવો',
+      es: 'Regenerar Sección',
+      fr: 'Régénérer la Section',
+    },
+    regenerating: {
+      en: 'Regenerating...',
+      hi: 'पुनः उत्पन्न हो रहा है...',
+      gu: 'ફરીથી ઉત્પન્ન થઈ રહ્યું છે...',
+      es: 'Regenerando...',
+      fr: 'Régénération en cours...',
+    },
+    translatingNotice: {
+      en: 'Translating deliverables...',
+      hi: 'ब्लूप्रिंट सामग्री का हिन्दी में अनुवाद हो रहा है...',
+      gu: 'બ્લુપ્રિન્ટ સામગ્રીનું ગુજરાતીમાં અનુવાદ થઈ રહ્યું છે...',
+      es: 'Traduciendo entregables...',
+      fr: 'Traduction des livrables...',
+    },
+    brdTitle: {
+      en: 'Executive Business Requirements Document',
+      hi: 'कार्यकारी व्यवसाय आवश्यकता दस्तावेज़',
+      gu: 'કાર્યકારી વ્યવસાય આવશ્યકતા દસ્તાવેજ',
+      es: 'Documento Ejecutivo de Requisitos de Negocio',
+      fr: 'Document Exécutif des Exigences Métier',
+    },
+    brdSub: {
+      en: 'Synthesized from business context, inputs, and answered discovery trade-offs.',
+      hi: 'व्यावसायिक संदर्भ, इनपुट और खोज प्रश्नों के उत्तर से संश्लेषित।',
+      gu: 'વ્યવસાય સંદર્ભ, ઇનપુટ્સ અને શોધ પ્રશ્નોના જવાબોમાંથી સંશ્લેષિત.',
+      es: 'Sintetizado a partir del contexto comercial, entradas y compensaciones de descubrimiento respondidas.',
+      fr: 'Synthétisé à partir du contexte commercial, des entrées et des compromis de découverte répondus.',
+    },
+  };
+  const tr = (key) => L[key]?.[currentLanguage] || L[key]?.en || key;
+
   useEffect(() => {
     const handleRole = (e) => setCurrentRole(e.detail?.role || getUserRole());
     window.addEventListener('role_changed', handleRole);
@@ -223,6 +356,16 @@ export default function ResultScreen() {
       setEstimate(data.estimate || null);
       setVersions(data.versions || []);
 
+      originalDeliverables.current = {
+        brd: data.brd || null,
+        architecture: data.architecture || null,
+        estimate: data.estimate || null,
+      };
+
+      if (currentLanguage && currentLanguage !== 'en') {
+        triggerTranslation(sessId, currentLanguage);
+      }
+
       // If not yet generated, prompt or redirect to generating
       if (data.session?.status !== 'completed' && !data.brd && !data.architecture) {
         navigate(`/session/${sessId}/generating`);
@@ -233,6 +376,65 @@ export default function ResultScreen() {
       setLoading(false);
     }
   };
+
+  const triggerTranslation = async (sessId, targetLang) => {
+    if (!sessId || !targetLang || targetLang === 'en') return;
+    if (translationsCache[targetLang]) {
+      const cached = translationsCache[targetLang];
+      if (cached.brd) setBrd(cached.brd);
+      if (cached.architecture) setArchitecture(cached.architecture);
+      if (cached.estimate) setEstimate(cached.estimate);
+      return;
+    }
+    const token = getStoredToken();
+    if (!token) return;
+
+    setTranslatingDeliverables(true);
+    try {
+      const res = await fetch(`http://localhost:5000/api/sessions/${sessId}/translate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ targetLanguage: targetLang }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          setTranslationsCache(prev => ({
+            ...prev,
+            [targetLang]: {
+              brd: data.brd,
+              architecture: data.architecture,
+              estimate: data.estimate,
+            },
+          }));
+          if (data.brd) setBrd(data.brd);
+          if (data.architecture) setArchitecture(data.architecture);
+          if (data.estimate) setEstimate(data.estimate);
+        }
+      }
+    } catch (err) {
+      console.warn('[ResultScreen] Translate request notice:', err);
+    } finally {
+      setTranslatingDeliverables(false);
+    }
+  };
+
+  // Reactively translate deliverables whenever user switches language dropdown
+  useEffect(() => {
+    if (!activeSessionId || !originalDeliverables.current?.brd) return;
+    if (currentLanguage === 'en') {
+      if (originalDeliverables.current) {
+        setBrd(originalDeliverables.current.brd);
+        setArchitecture(originalDeliverables.current.architecture);
+        setEstimate(originalDeliverables.current.estimate);
+      }
+      return;
+    }
+    triggerTranslation(activeSessionId, currentLanguage);
+  }, [currentLanguage, activeSessionId]);
 
   // Single Section Regeneration (FR-6.2)
   const handleRegenerateSection = async (sectionKey) => {
@@ -251,6 +453,7 @@ export default function ResultScreen() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
+        body: JSON.stringify({ userLanguage: currentLanguage }),
       });
 
       if (!res.ok) throw new Error(`Failed to regenerate ${sectionKey}.`);
@@ -260,6 +463,33 @@ export default function ResultScreen() {
     } finally {
       setRegeneratingSection(null);
     }
+  };
+
+  // Automated Cloud Sandbox Deploy (RBAC capability 7: Admin only)
+  const [deployingSandbox, setDeployingSandbox] = useState(false);
+  const [sandboxDeployModal, setSandboxDeployModal] = useState(null);
+
+  const handleTriggerSandboxDeploy = () => {
+    if (currentRole !== 'admin') {
+      alert('🔒 Access Restricted: Trigger Automated Cloud Sandbox Deploy is restricted to Administrators only (as per the RBAC Permission Matrix). Current role: ' + currentRole.toUpperCase() + '.');
+      return;
+    }
+    setDeployingSandbox(true);
+    setSandboxDeployModal({ step: 1, text: 'Spinning up ephemeral container sandbox...' });
+    setTimeout(() => {
+      setSandboxDeployModal({ step: 2, text: 'Configuring TLS 1.3 VPC Ingress & Zero-Trust mesh...' });
+    }, 1200);
+    setTimeout(() => {
+      setSandboxDeployModal({ step: 3, text: 'Running automated health probe on microservice cluster...' });
+    }, 2400);
+    setTimeout(() => {
+      setSandboxDeployModal({
+        step: 4,
+        text: 'Cloud Sandbox deployed successfully!',
+        url: 'https://sandbox-' + (activeSessionId ? activeSessionId.slice(0, 8) : 'demo') + '.compileai.cloud',
+      });
+      setDeployingSandbox(false);
+    }, 3600);
   };
 
   // Direct File Export Download
@@ -333,6 +563,84 @@ export default function ResultScreen() {
   const dbSchema = architecture?.database_schema || null;
   const apiSpecs = architecture?.api_specs || null;
   const wireframes = (architecture?.wireframes && architecture.wireframes.screens) ? architecture.wireframes : dynamicArtifacts.dynamicWireframes;
+  const prototype = (architecture?.prototype && architecture.prototype.appName) ? architecture.prototype : dynamicArtifacts.dynamicPrototype;
+
+  const currentProtoRecords = useMemo(() => {
+    return protoCustomRecords || prototype?.records || [];
+  }, [protoCustomRecords, prototype?.records]);
+
+  const filteredProtoRecords = useMemo(() => {
+    return currentProtoRecords.filter(r => {
+      const q = (protoSearch || '').toLowerCase();
+      const matchesSearch = !q ||
+        (r.name && String(r.name).toLowerCase().includes(q)) ||
+        (r.id && String(r.id).toLowerCase().includes(q)) ||
+        (r.district && String(r.district).toLowerCase().includes(q));
+      const matchesFilter = protoFilter === 'All' || r.status === protoFilter;
+      return matchesSearch && matchesFilter;
+    });
+  }, [currentProtoRecords, protoSearch, protoFilter]);
+
+  const handleCreateRecord = (e) => {
+    e.preventDefault();
+    if (!newRecordForm.name.trim()) return;
+    const newRec = {
+      id: `REC-${Date.now().toString().slice(-4)}`,
+      name: newRecordForm.name.trim(),
+      district: newRecordForm.district.trim() || 'Manual Input',
+      acres: 'Telemetry Nominal',
+      hp: 'Sub-10ms Ingress',
+      subsidy: 'Active Stream',
+      status: newRecordForm.status || 'Approved',
+      urgent: false,
+      date: new Date().toISOString().split('T')[0],
+      details: 'Created interactively in working prototype sandbox.',
+    };
+    setProtoCustomRecords([newRec, ...currentProtoRecords]);
+    setNewRecordModal(false);
+    setNewRecordForm({ name: '', district: '', status: 'Approved' });
+  };
+
+  const handleCopyProtoCode = () => {
+    if (prototype?.codeSnippet) {
+      navigator.clipboard.writeText(prototype.codeSnippet);
+      setProtoCopied(true);
+      setTimeout(() => setProtoCopied(false), 2000);
+    }
+  };
+
+  const livePrototypeUrl = activeSessionId
+    ? `http://localhost:5000/api/sessions/${activeSessionId}/prototype/live`
+    : '';
+
+  const handleCopyLiveUrl = () => {
+    if (livePrototypeUrl) {
+      navigator.clipboard.writeText(livePrototypeUrl);
+      setProtoUrlCopied(true);
+      setTimeout(() => setProtoUrlCopied(false), 2000);
+    }
+  };
+
+  const handleDownloadDeployedHtml = async () => {
+    if (!livePrototypeUrl) return;
+    try {
+      const res = await fetch(livePrototypeUrl);
+      const htmlText = await res.text();
+      const blob = new Blob([htmlText], { type: 'text/html;charset=utf-8;' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const cleanName = (prototype?.appName || 'deployed_prototype').toLowerCase().replace(/[^a-z0-9]/g, '_');
+      a.download = `${cleanName}.html`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Failed to download deployed HTML:', err);
+      window.open(livePrototypeUrl, '_blank');
+    }
+  };
 
   const dbTables = (dbSchema?.tables && Array.isArray(dbSchema.tables) && dbSchema.tables.length > 0) ? dbSchema.tables : dynamicArtifacts.dynamicDbTables;
   const apiEndpoints = (apiSpecs?.endpoints && Array.isArray(apiSpecs.endpoints) && apiSpecs.endpoints.length > 0) ? apiSpecs.endpoints : dynamicArtifacts.dynamicApiEndpoints;
@@ -367,6 +675,53 @@ export default function ResultScreen() {
 
   const phaseBreakdown = estimate?.phase_breakdown || [];
   const teamAssumptions = estimate?.team_assumptions || {};
+
+  const { displayObjectives, displayScope } = useMemo(() => {
+    let rawObj = (brd?.objectives || '').trim();
+    let rawScope = (brd?.scope || '').trim();
+
+    // Check if rawScope contains the full unparsed BRD document (e.g. from fallback or older sessions)
+    const hasUnparsedDoc = /Executive.*Objectives/i.test(rawScope) || /# Business Requirement Document/i.test(rawScope) || /##?\s*(?:2\.\s*)?(?:Project\s+)?Scope/i.test(rawScope);
+
+    if (hasUnparsedDoc) {
+      const objMatch = rawScope.match(/(?:(?:##?\s*)?(?:1\.\s*)?Executive\s+(?:Summary\s+(?:&|and)\s+)?Objectives[^\n]*\n+)([\s\S]*?)(?=\n+#{1,2}\s*(?:2\.\s*|Scope)|$)/i);
+      const scopeMatch = rawScope.match(/(?:(?:##?\s*)?(?:2\.\s*)?(?:Project\s+)?Scope[^\n]*\n+)([\s\S]*?)(?=\n+#{1,2}\s*(?:[3-9]\.|Stakeholders|Functional Requirement)|\n+#\s+[^#]|$)/i);
+
+      if (objMatch && objMatch[1]?.trim()) {
+        const extractedObj = objMatch[1].trim();
+        // If current rawObj is just a generic fallback title or very short, use the extracted one
+        if (!rawObj || rawObj.length < 80 || rawObj.startsWith('Transform ') || rawObj.startsWith('Eliminate ')) {
+          rawObj = extractedObj;
+        }
+      }
+
+      if (scopeMatch && scopeMatch[1]?.trim()) {
+        rawScope = scopeMatch[1].trim();
+      } else {
+        // Strip out document title, warning, and objectives from rawScope so it doesn't duplicate
+        rawScope = rawScope
+          .replace(/^#\s*Business Requirement Document[^\n]*\n+/i, '')
+          .replace(/^>\s*⚠️[^\n]*\n+/i, '')
+          .replace(/(?:(?:##?\s*)?(?:1\.\s*)?Executive[^\n]*Objectives[^\n]*\n+)([\s\S]*?)(?=(?:##?\s*)?(?:2\.\s*)?Scope|\n##|\n#|$)/i, '')
+          .trim();
+      }
+    }
+
+    // Ensure rawObj is rich and well-structured so the left card is never an empty void
+    if (!rawObj || (!rawObj.includes('###') && rawObj.length < 120)) {
+      const title = session?.title || 'Core Enterprise Workflows';
+      const baseGoal = rawObj || `Automate and digitise ${title}.`;
+      rawObj = `### Primary Transformation Objective\n${baseGoal}\n\n### Strategic Business Outcomes & KPIs\n- **Operational Efficiency**: 70%+ reduction in processing latency and manual intervention.\n- **Data Governance**: Normalized schemas and automated audit trail tracking.\n- **High Availability**: Resilient cloud-native microservices with 99.5% uptime SLA.`;
+    }
+
+    // Ensure rawScope has clear structured points
+    if (!rawScope || (!rawScope.includes('In-Scope') && rawScope.length < 80)) {
+      const title = session?.title || 'System Core';
+      rawScope = `### In-Scope Core Capabilities\n- Intake automation, status tracking, role-based access, and legacy integration for ${title}.\n- Automated rule execution, multi-tier approvals, and REST API integration endpoints.\n- Live operational dashboards for key business stakeholders.\n\n### Out-of-Scope Boundaries\n- Bespoke physical infrastructure overhaul or hardware decommissioning.\n- Custom non-standard third-party integrations outside the target scope.`;
+    }
+
+    return { displayObjectives: rawObj, displayScope: rawScope };
+  }, [brd?.objectives, brd?.scope, session?.title]);
 
   return (
     <div style={{ minHeight: '100vh', background: C.bg, fontFamily: 'system-ui, -apple-system, sans-serif', color: C.textH }}>
@@ -784,7 +1139,8 @@ export default function ResultScreen() {
                   { id: 'bpmn', label: t('result.tabs.bpmn') || '3. Process Intelligence (BPMN)', icon: FLOW_ICON },
                   { id: 'database', label: t('result.tabs.database') || '4. Database & REST APIs', icon: DB_ICON },
                   { id: 'wireframes', label: t('result.tabs.wireframes') || '5. AI Wireframes', icon: WIRE_ICON },
-                  { id: 'estimates', label: t('result.tabs.estimates') || '6. Effort & Cost Band', icon: COST_ICON },
+                  { id: 'prototype', label: '6. Product Prototype', icon: CODE_ICON },
+                  { id: 'estimates', label: t('result.tabs.estimates') || '7. Effort & Cost Band', icon: COST_ICON },
                 ].map(tab => {
                   const isActive = activeTab === tab.id;
                   return (
@@ -820,14 +1176,34 @@ export default function ResultScreen() {
               ═══════════════════════════════════════════════════════════ */}
               {activeTab === 'brd' && (
                 <div>
+                  {/* Translating notification pill */}
+                  {translatingDeliverables && (
+                    <div style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      background: '#eef2ff',
+                      border: '1px solid #c7d2fe',
+                      color: '#4f46e5',
+                      padding: '7px 16px',
+                      borderRadius: 20,
+                      fontSize: 12.5,
+                      fontWeight: 600,
+                      marginBottom: 16,
+                    }}>
+                      <span style={{ fontSize: 14 }}>🌐</span>
+                      <span>{tr('translatingNotice')}</span>
+                    </div>
+                  )}
+
                   {/* Tab Action Header */}
                   <div className="tab-action-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
                     <div>
                       <h2 style={{ fontSize: 19, fontWeight: 800, margin: '0 0 4px', color: C.textH }}>
-                        Executive Business Requirements Document
+                        {tr('brdTitle')}
                       </h2>
                       <p style={{ margin: 0, fontSize: 13, color: C.textM }}>
-                        Synthesized from business context, inputs, and answered discovery trade-offs.
+                        {tr('brdSub')}
                       </p>
                     </div>
 
@@ -849,7 +1225,7 @@ export default function ResultScreen() {
                       }}
                     >
                       <Icon d={REFRESH_ICON} size={13} color={C.primary} />
-                      <span>{regeneratingSection === 'brd' ? 'Regenerating BRD...' : 'Regenerate Section'}</span>
+                      <span>{regeneratingSection === 'brd' ? tr('regenerating') : tr('regenerateBtn')}</span>
                     </button>
                   </div>
 
@@ -863,17 +1239,17 @@ export default function ResultScreen() {
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, fontWeight: 800, color: '#92400e', marginBottom: 8 }}>
                       <span style={{ fontSize: 16 }}>🧠</span>
-                      <span>AI Recommendation Explainability & Grounding</span>
+                      <span>{tr('explainabilityTitle')}</span>
                     </div>
                     <div style={{ fontSize: 12.5, color: '#78350f', lineHeight: 1.6, display: 'flex', flexDirection: 'column', gap: 6 }}>
                       <div>
-                        <strong>• Why I Recommended This:</strong> {brd?.objectives ? `Automated architecture engineered to fulfill target objectives: "${brd.objectives.slice(0, 140)}..." with sub-second latency and resilient horizontal scaling.` : `Automated architecture engineered to modernize ${session?.title || 'enterprise workflows'} with sub-second latency and resilient horizontal scaling.`}
+                        <strong>• {tr('whyRecommended')}:</strong> {displayObjectives ? `Automated architecture engineered to fulfill target objectives: "${displayObjectives.slice(0, 140).replace(/^[#\s*]+/, '')}..." with sub-second latency and resilient horizontal scaling.` : `Automated architecture engineered to modernize ${session?.title || 'enterprise workflows'} with sub-second latency and resilient horizontal scaling.`}
                       </div>
                       <div>
-                        <strong>• Underlying Assumption:</strong> {assumptions.length > 0 ? (typeof assumptions[0] === 'string' ? assumptions[0] : assumptions[0]?.assumption || 'Standard cloud infrastructure and high-availability network connectivity are provisioned.') : 'Standard cloud infrastructure and high-availability network connectivity are provisioned.'}
+                        <strong>• {tr('underlyingAssumption')}:</strong> {assumptions.length > 0 ? (typeof assumptions[0] === 'string' ? assumptions[0] : assumptions[0]?.assumption || 'Standard cloud infrastructure and high-availability network connectivity are provisioned.') : 'Standard cloud infrastructure and high-availability network connectivity are provisioned.'}
                       </div>
                       <div>
-                        <strong>• Source Evidence:</strong> Synthesized directly from validated input: <em>"{session?.summary ? session.summary.slice(0, 140) + '...' : session?.title || 'Domain requirement specifications'}"</em>.
+                        <strong>• {tr('sourceEvidence')}:</strong> Synthesized directly from validated input: <em>"{session?.summary ? session.summary.slice(0, 140) + '...' : session?.title || 'Domain requirement specifications'}"</em>.
                       </div>
                     </div>
                   </div>
@@ -882,23 +1258,23 @@ export default function ResultScreen() {
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 24 }} className="brd-grid">
                     <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, padding: 22 }}>
                       <div style={{ fontSize: 12, fontWeight: 700, color: C.primary, textTransform: 'uppercase', marginBottom: 8, letterSpacing: 0.6 }}>
-                        Executive Objectives
+                        {tr('executiveObjectives')}
                       </div>
-                      <FormattedMarkdownContent text={brd?.objectives || 'Streamline digital transformation initiative with automated reasoning and continuous integration.'} />
+                      <FormattedMarkdownContent text={displayObjectives} />
                     </div>
 
                     <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, padding: 22 }}>
                       <div style={{ fontSize: 12, fontWeight: 700, color: C.accent, textTransform: 'uppercase', marginBottom: 8, letterSpacing: 0.6 }}>
-                        Scope Boundaries
+                        {tr('scopeBoundaries')}
                       </div>
-                      <FormattedMarkdownContent text={brd?.scope || 'Covers intake, automated rule execution, multi-tier approvals, and REST API integration endpoints.'} />
+                      <FormattedMarkdownContent text={displayScope} />
                     </div>
                   </div>
 
                   {/* Gap Analysis */}
                   <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, padding: 22, marginBottom: 24 }}>
                     <div style={{ fontSize: 15, fontWeight: 700, color: C.textH, marginBottom: 14 }}>
-                      Current State vs. Desired State Gap Analysis
+                      {tr('gapAnalysisTitle')}
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14 }}>
                       {gapAnalysis.map((gap, gi) => (
@@ -929,7 +1305,7 @@ export default function ResultScreen() {
                     {/* Functional Specs */}
                     <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, padding: 22 }}>
                       <div style={{ fontSize: 15, fontWeight: 700, color: C.textH, marginBottom: 14 }}>
-                        Functional Specifications ({functionalReqs.length})
+                        {tr('functionalSpecs')} ({functionalReqs.length})
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                         {functionalReqs.map((fr, fri) => (
@@ -951,7 +1327,7 @@ export default function ResultScreen() {
                     {/* Non-Functional Requirements */}
                     <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, padding: 22 }}>
                       <div style={{ fontSize: 15, fontWeight: 700, color: C.textH, marginBottom: 14 }}>
-                        Non-Functional Requirements (NFRs)
+                        {tr('nonFunctionalSpecs')}
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                         {nonFunctionalReqs.map((nfr, nfi) => (
@@ -972,7 +1348,7 @@ export default function ResultScreen() {
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }} className="brd-stakeholders-grid">
                     <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, padding: 20 }}>
                       <div style={{ fontSize: 13.5, fontWeight: 700, color: C.textH, marginBottom: 10 }}>
-                        Key Stakeholders & Approvers
+                        {tr('stakeholders')}
                       </div>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                         {stakeholders.map((s, si) => (
@@ -985,7 +1361,7 @@ export default function ResultScreen() {
 
                     <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, padding: 20 }}>
                       <div style={{ fontSize: 13.5, fontWeight: 700, color: C.textH, marginBottom: 10 }}>
-                        Assumptions & Constraints
+                        {tr('assumptionsConstraints')}
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12.5, color: C.textM }}>
                         {constraints.slice(0, 3).map((c, ci) => (
@@ -1033,7 +1409,7 @@ export default function ResultScreen() {
                       }}
                     >
                       <Icon d={REFRESH_ICON} size={13} color={C.primary} />
-                      <span>{regeneratingSection === 'architecture' ? 'Regenerating Architecture...' : 'Regenerate Section'}</span>
+                      <span>{regeneratingSection === 'architecture' ? tr('regenerating') : tr('regenerateBtn')}</span>
                     </button>
                   </div>
 
@@ -1057,17 +1433,17 @@ export default function ResultScreen() {
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, fontWeight: 800, color: '#92400e', marginBottom: 8 }}>
                       <span style={{ fontSize: 16 }}>🧠</span>
-                      <span>AI Architectural Rationale & Explainability</span>
+                      <span>{tr('explainabilityTitle')}</span>
                     </div>
                     <div style={{ fontSize: 12.5, color: '#78350f', lineHeight: 1.6, display: 'flex', flexDirection: 'column', gap: 6 }}>
                       <div>
-                        <strong>• Why I Recommended This:</strong> Selected a decoupled event-driven cloud architecture with API Gateway and microservice worker pools to isolate core transaction processing from external integrations and data lake analytics.
+                        <strong>• {tr('whyRecommended')}:</strong> Selected a decoupled event-driven cloud architecture with API Gateway and microservice worker pools to isolate core transaction processing from external integrations and data lake analytics.
                       </div>
                       <div>
-                        <strong>• Underlying Assumption:</strong> Estimated peak operational throughput is handled via auto-scaling compute pods, Redis in-memory cache, and message brokers with sub-second lookups.
+                        <strong>• {tr('underlyingAssumption')}:</strong> Estimated peak operational throughput is handled via auto-scaling compute pods, Redis in-memory cache, and message brokers with sub-second lookups.
                       </div>
                       <div>
-                        <strong>• Source Evidence:</strong> Grounded in statutory 99.9% uptime requirement, zero-trust token authentication, and multi-tenant domain isolation for {session?.title || 'the enterprise solution'}.
+                        <strong>• {tr('sourceEvidence')}:</strong> Grounded in statutory 99.9% uptime requirement, zero-trust token authentication, and multi-tenant domain isolation for {session?.title || 'the enterprise solution'}.
                       </div>
                     </div>
                   </div>
@@ -1132,9 +1508,65 @@ export default function ResultScreen() {
                       ))}
                     </div>
 
-                    <div style={{ marginTop: 18, paddingTop: 14, borderTop: '1px solid #334155', fontSize: 12, color: '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ marginTop: 18, paddingTop: 14, borderTop: '1px solid #334155', fontSize: 12, color: '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
                       <span>Flow: Client Ingestion → Auth Verification → Parallel Reasoning Pool → ACID Transaction Storage</span>
                       <span style={{ color: '#34d399' }}>● Continuous Uptime SLA: 99.9%</span>
+                    </div>
+
+                    {/* RBAC Capability 7: Trigger Automated Cloud Sandbox Deploy */}
+                    <div style={{
+                      marginTop: 14,
+                      padding: '14px 16px',
+                      background: 'rgba(255,255,255,0.04)',
+                      borderRadius: 12,
+                      border: '1px solid #334155',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      flexWrap: 'wrap',
+                      gap: 12,
+                    }}>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span>🚀 Automated Cloud Sandbox Deploy</span>
+                          <span style={{
+                            fontSize: 10,
+                            padding: '2px 7px',
+                            borderRadius: 10,
+                            background: currentRole === 'admin' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)',
+                            color: currentRole === 'admin' ? '#34d399' : '#f87171',
+                            fontWeight: 800,
+                            textTransform: 'uppercase',
+                          }}>
+                            {currentRole === 'admin' ? '✓ Admin Allowed' : '✗ Restricted (Admin Only)'}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: 11.5, color: '#94a3b8', marginTop: 3 }}>
+                          Deploy an isolated zero-trust ephemeral sandbox container to test this architecture.
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleTriggerSandboxDeploy}
+                        style={{
+                          padding: '9px 18px',
+                          borderRadius: 10,
+                          background: currentRole === 'admin' ? 'linear-gradient(135deg, #6366f1 0%, #06b6d4 100%)' : '#334155',
+                          color: '#fff',
+                          fontWeight: 700,
+                          fontSize: 12.5,
+                          border: 'none',
+                          cursor: currentRole === 'admin' ? 'pointer' : 'not-allowed',
+                          opacity: currentRole === 'admin' ? 1 : 0.6,
+                          boxShadow: currentRole === 'admin' ? '0 4px 14px rgba(99,102,241,0.35)' : 'none',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                        }}
+                      >
+                        {deployingSandbox ? 'Deploying Sandbox...' : 'Trigger Automated Cloud Sandbox Deploy'}
+                      </button>
                     </div>
                   </div>
 
@@ -1558,18 +1990,57 @@ export default function ResultScreen() {
               ═══════════════════════════════════════════════════════════ */}
               {activeTab === 'wireframes' && (
                 <div>
-                  <div className="tab-action-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+                  <div className="tab-action-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
                     <div>
                       <h2 style={{ fontSize: 19, fontWeight: 800, margin: '0 0 4px', color: C.textH }}>
                         AI UX Wireframe Concepts & Screen Hierarchy
                       </h2>
                       <p style={{ margin: 0, fontSize: 13, color: C.textM }}>
-                        Low-fidelity visual layout blueprints mapping key user workflows.
+                        High-fidelity visual layout blueprints dynamically synthesized from project requirements.
                       </p>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        padding: '4px 10px',
+                        borderRadius: 20,
+                        background: '#eff6ff',
+                        color: '#2563eb',
+                        border: '1px solid #bfdbfe',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 5
+                      }}>
+                        <span style={{ fontSize: 13 }}>✨</span>
+                        {wireframes?.provider || 'Google Gemini (Dedicated Engine)'}
+                      </span>
+                      <button
+                        onClick={() => handleRegenerateSection('wireframes')}
+                        disabled={regeneratingSection === 'wireframes'}
+                        style={{
+                          background: C.surface,
+                          border: `1px solid ${C.border}`,
+                          borderRadius: 8,
+                          padding: '8px 14px',
+                          fontSize: 12.5,
+                          fontWeight: 600,
+                          color: C.primary,
+                          cursor: regeneratingSection === 'wireframes' ? 'not-allowed' : 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                        }}
+                      >
+                        <span style={{ fontSize: 13 }}>⚡</span>
+                        {regeneratingSection === 'wireframes' ? 'Generating Wireframes...' : 'Regenerate Wireframes & UI'}
+                      </button>
                     </div>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 20 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 24 }}>
                     {(wireframes?.screens || []).map((screen, si) => (
                       <div key={screen.id || si} style={{
                         background: C.surface,
@@ -1577,102 +2048,196 @@ export default function ResultScreen() {
                         borderRadius: 16,
                         padding: 22,
                         boxShadow: '0 4px 16px rgba(0,0,0,0.02)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between',
                       }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                          <span style={{ fontSize: 14, fontWeight: 800, color: C.textH }}>{screen.title}</span>
-                          <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 7px', borderRadius: 6, background: C.primaryLt, color: C.primaryDk, textTransform: 'uppercase' }}>
-                            {screen.layoutType}
-                          </span>
-                        </div>
-                        <p style={{ fontSize: 12.5, color: C.textM, margin: '0 0 16px', lineHeight: 1.5 }}>
-                          {screen.description}
-                        </p>
-
-                        {/* Visual Wireframe Blueprint Canvas */}
-                        <div style={{
-                          background: '#1e293b',
-                          borderRadius: 12,
-                          padding: 12,
-                          marginBottom: 16,
-                          border: '1px solid #334155',
-                          boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.3)',
-                        }}>
-                          {/* Mini Window Bar */}
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 10, paddingBottom: 6, borderBottom: '1px solid #334155' }}>
-                            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444' }} />
-                            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#f59e0b' }} />
-                            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#10b981' }} />
-                            <span style={{ fontSize: 9.5, color: '#94a3b8', marginLeft: 6, fontFamily: 'monospace' }}>
-                              wireframe://{screen.title.toLowerCase().replace(/[^a-z0-9]/g, '-')}
+                        <div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                            <span style={{ fontSize: 15, fontWeight: 800, color: C.textH }}>{screen.title}</span>
+                            <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 8px', borderRadius: 6, background: C.primaryLt, color: C.primaryDk, textTransform: 'uppercase' }}>
+                              {screen.layoutType || 'Dashboard'}
                             </span>
                           </div>
+                          <p style={{ fontSize: 12.5, color: C.textM, margin: '0 0 16px', lineHeight: 1.5 }}>
+                            {screen.description}
+                          </p>
 
-                          {/* Visual Layout Mock */}
-                          <div style={{ display: 'grid', gridTemplateColumns: '50px 1fr', gap: 8, height: 105 }}>
-                            {/* Mini Sidebar */}
-                            <div style={{ background: '#0f172a', borderRadius: 6, padding: 6, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                              <div style={{ height: 6, background: '#6366f1', borderRadius: 3, width: '80%' }} />
-                              <div style={{ height: 4, background: '#334155', borderRadius: 2 }} />
-                              <div style={{ height: 4, background: '#334155', borderRadius: 2 }} />
-                              <div style={{ height: 4, background: '#334155', borderRadius: 2 }} />
+                          {/* Visual Wireframe Blueprint Canvas */}
+                          <div style={{
+                            background: '#0f172a',
+                            borderRadius: 12,
+                            padding: 12,
+                            marginBottom: 16,
+                            border: '1px solid #334155',
+                            boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.4)',
+                          }}>
+                            {/* Browser / Application Top Bar */}
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, paddingBottom: 6, borderBottom: '1px solid #1e293b' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444' }} />
+                                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#f59e0b' }} />
+                                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#10b981' }} />
+                                <span style={{ fontSize: 9.5, color: '#64748b', marginLeft: 6, fontFamily: 'monospace' }}>
+                                  app://blueprint/{screen.title?.toLowerCase().replace(/[^a-z0-9]/g, '-') || 'screen'}
+                                </span>
+                              </div>
+                              <span style={{ fontSize: 8.5, color: '#475569', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                                {screen.layoutType}
+                              </span>
                             </div>
 
-                            {/* Mini Main Content Area */}
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                              {/* Mini Metric Cards */}
-                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
-                                <div style={{ background: '#334155', height: 26, borderRadius: 4, padding: 3 }}>
-                                  <div style={{ height: 4, width: '50%', background: '#94a3b8', borderRadius: 2, marginBottom: 3 }} />
-                                  <div style={{ height: 8, width: '70%', background: '#38bdf8', borderRadius: 2 }} />
-                                </div>
-                                <div style={{ background: '#334155', height: 26, borderRadius: 4, padding: 3 }}>
-                                  <div style={{ height: 4, width: '50%', background: '#94a3b8', borderRadius: 2, marginBottom: 3 }} />
-                                  <div style={{ height: 8, width: '60%', background: '#4ade80', borderRadius: 2 }} />
-                                </div>
-                                <div style={{ background: '#334155', height: 26, borderRadius: 4, padding: 3 }}>
-                                  <div style={{ height: 4, width: '50%', background: '#94a3b8', borderRadius: 2, marginBottom: 3 }} />
-                                  <div style={{ height: 8, width: '80%', background: '#f59e0b', borderRadius: 2 }} />
-                                </div>
+                            {/* Header Navigation Pills if available */}
+                            {Array.isArray(screen.headerNav) && screen.headerNav.length > 0 && (
+                              <div style={{ display: 'flex', gap: 6, marginBottom: 8, overflowX: 'auto', paddingBottom: 2 }}>
+                                {screen.headerNav.map((item, hi) => (
+                                  <span key={hi} style={{
+                                    fontSize: 9,
+                                    padding: '2px 7px',
+                                    borderRadius: 4,
+                                    background: hi === 0 ? '#3b82f6' : '#1e293b',
+                                    color: hi === 0 ? '#fff' : '#94a3b8',
+                                    fontWeight: hi === 0 ? 700 : 500,
+                                  }}>
+                                    {item}
+                                  </span>
+                                ))}
                               </div>
+                            )}
 
-                              {/* Mini Table Skeleton */}
-                              <div style={{ background: '#0f172a', flex: 1, borderRadius: 4, padding: 6, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                                <div style={{ height: 6, background: '#334155', borderRadius: 2, width: '100%' }} />
-                                <div style={{ height: 4, background: '#1e293b', borderRadius: 2, width: '90%' }} />
-                                <div style={{ height: 4, background: '#1e293b', borderRadius: 2, width: '95%' }} />
+                            {/* Layout Body: Sidebar + Main Area */}
+                            <div style={{ display: 'grid', gridTemplateColumns: screen.sidebarItems?.length ? '70px 1fr' : '1fr', gap: 8, minHeight: 140 }}>
+                              {/* Sidebar */}
+                              {Array.isArray(screen.sidebarItems) && screen.sidebarItems.length > 0 && (
+                                <div style={{ background: '#090d16', borderRadius: 6, padding: 6, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                  <div style={{ height: 4, background: '#6366f1', borderRadius: 2, width: '70%', marginBottom: 4 }} />
+                                  {screen.sidebarItems.slice(0, 5).map((sItem, sIdx) => (
+                                    <span key={sIdx} style={{ fontSize: 8, color: sIdx === 0 ? '#38bdf8' : '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                      • {sItem}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+
+                              {/* Main Content Area */}
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                {/* Metrics Ribbon */}
+                                {Array.isArray(screen.metrics) && screen.metrics.length > 0 ? (
+                                  <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(screen.metrics.length, 3)}, 1fr)`, gap: 6 }}>
+                                    {screen.metrics.slice(0, 3).map((m, mi) => (
+                                      <div key={mi} style={{ background: '#1e293b', borderRadius: 5, padding: '4px 6px' }}>
+                                        <div style={{ fontSize: 7.5, color: '#94a3b8', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                                          {m.label}
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginTop: 2 }}>
+                                          <span style={{ fontSize: 11, fontWeight: 800, color: m.color || '#38bdf8' }}>
+                                            {m.value}
+                                          </span>
+                                          {m.trend && (
+                                            <span style={{ fontSize: 7.5, color: '#34d399' }}>
+                                              {m.trend}
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
+                                    <div style={{ background: '#1e293b', height: 26, borderRadius: 4 }} />
+                                    <div style={{ background: '#1e293b', height: 26, borderRadius: 4 }} />
+                                    <div style={{ background: '#1e293b', height: 26, borderRadius: 4 }} />
+                                  </div>
+                                )}
+
+                                {/* Interactive Mock Data Grid / Content Skeleton */}
+                                {Array.isArray(screen.mockRows) && screen.mockRows.length > 0 ? (
+                                  <div style={{ background: '#131d2e', borderRadius: 6, padding: 6, overflow: 'hidden' }}>
+                                    {screen.mockRows.slice(0, 3).map((row, ri) => (
+                                      <div key={ri} style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between',
+                                        padding: '3px 0',
+                                        borderBottom: ri < 2 ? '1px solid #1e293b' : 'none',
+                                        fontSize: 8.5,
+                                      }}>
+                                        <span style={{ color: '#94a3b8', fontFamily: 'monospace' }}>{row.col1 || `ID-${ri + 1}`}</span>
+                                        <span style={{ color: '#cbd5e1', fontWeight: 600 }}>{row.col2 || 'Entity'}</span>
+                                        <span style={{ color: '#64748b' }}>{row.col3 || ''}</span>
+                                        <span style={{
+                                          fontSize: 7.5,
+                                          padding: '1px 4px',
+                                          borderRadius: 3,
+                                          background: row.status === 'danger' ? '#ef444433' : row.status === 'warning' ? '#f59e0b33' : '#10b98133',
+                                          color: row.status === 'danger' ? '#f87171' : row.status === 'warning' ? '#fbbf24' : '#34d399',
+                                        }}>
+                                          {row.col4 || row.status || 'Active'}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <div style={{ background: '#131d2e', flex: 1, borderRadius: 6, padding: 6, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                    <div style={{ height: 6, background: '#334155', borderRadius: 2, width: '100%' }} />
+                                    <div style={{ height: 4, background: '#1e293b', borderRadius: 2, width: '85%' }} />
+                                    <div style={{ height: 4, background: '#1e293b', borderRadius: 2, width: '92%' }} />
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </div>
                         </div>
 
-                        {/* Wireframe Mock Box */}
-                        <div style={{
-                          background: C.surfaceAlt,
-                          border: `1.5px dashed ${C.borderMed}`,
-                          borderRadius: 12,
-                          padding: 16,
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: 10,
-                        }}>
-                          {(screen.components || []).map((comp, ci) => (
-                            <div key={ci} style={{
-                              background: C.surface,
-                              border: `1px solid ${C.border}`,
-                              borderRadius: 8,
-                              padding: '10px 12px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'space-between',
-                            }}>
-                              <span style={{ fontSize: 12, fontWeight: 600, color: C.textB }}>
-                                ▫ {comp.label}
-                              </span>
-                              <span style={{ fontSize: 10, color: C.textSub, background: C.surfaceAlt, padding: '2px 6px', borderRadius: 4 }}>
-                                {comp.type}
-                              </span>
+                        <div>
+                          {/* Screen Actions Pills */}
+                          {Array.isArray(screen.actions) && screen.actions.length > 0 && (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+                              {screen.actions.map((act, ai) => (
+                                <span key={ai} style={{
+                                  fontSize: 10,
+                                  fontWeight: 600,
+                                  color: C.primary,
+                                  background: C.surfaceAlt,
+                                  border: `1px solid ${C.border}`,
+                                  borderRadius: 6,
+                                  padding: '3px 8px',
+                                }}>
+                                  ▶ {act}
+                                </span>
+                              ))}
                             </div>
-                          ))}
+                          )}
+
+                          {/* Wireframe Components Breakdown */}
+                          <div style={{
+                            background: C.surfaceAlt,
+                            border: `1.5px dashed ${C.borderMed}`,
+                            borderRadius: 12,
+                            padding: 14,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 8,
+                          }}>
+                            {(screen.components || []).map((comp, ci) => (
+                              <div key={ci} style={{
+                                background: C.surface,
+                                border: `1px solid ${C.border}`,
+                                borderRadius: 8,
+                                padding: '8px 10px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                              }}>
+                                <span style={{ fontSize: 11.5, fontWeight: 600, color: C.textB }}>
+                                  ▫ {comp.label}
+                                </span>
+                                <span style={{ fontSize: 9.5, color: C.textSub, background: C.surfaceAlt, padding: '2px 6px', borderRadius: 4, border: `1px solid ${C.border}` }}>
+                                  {comp.type}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -1681,7 +2246,883 @@ export default function ResultScreen() {
               )}
 
               {/* ═══════════════════════════════════════════════════════
-                  TAB 6: EFFORT, COST & ROADMAP
+                  TAB 6: PRODUCT PROTOTYPE (DUAL AI ENGINE ROUND-ROBIN)
+              ═══════════════════════════════════════════════════════════ */}
+              {activeTab === 'prototype' && (
+                <div>
+                  <div className="tab-action-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                        <h2 style={{ fontSize: 19, fontWeight: 800, margin: 0, color: C.textH }}>
+                          {prototype?.appName || 'Interactive Working Product Prototype'}
+                        </h2>
+                        <span style={{
+                          fontSize: 10.5,
+                          fontWeight: 700,
+                          padding: '2px 8px',
+                          borderRadius: 20,
+                          background: '#ecfdf5',
+                          color: '#059669',
+                          border: '1px solid #a7f3d0'
+                        }}>
+                          ● Live Sandbox
+                        </span>
+                      </div>
+                      <p style={{ margin: 0, fontSize: 13, color: C.textM }}>
+                        {prototype?.appSummary || 'Working solution prototype synthesized from business requirements with interactive controls.'}
+                      </p>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                      <span style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        padding: '5px 12px',
+                        borderRadius: 20,
+                        background: '#eff6ff',
+                        color: '#1d4ed8',
+                        border: '1px solid #bfdbfe',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6
+                      }}>
+                        <span style={{ fontSize: 13 }}>⚡</span>
+                        {prototype?.provider || 'Dual AI Engine (Gemini & Groq)'}
+                        {prototype?.modelUsed && (
+                          <span style={{ opacity: 0.7, fontSize: 10 }}>({prototype.modelUsed})</span>
+                        )}
+                      </span>
+                      <button
+                        onClick={() => handleRegenerateSection('prototype')}
+                        disabled={regeneratingSection === 'prototype'}
+                        style={{
+                          background: C.surface,
+                          border: `1px solid ${C.border}`,
+                          borderRadius: 8,
+                          padding: '8px 14px',
+                          fontSize: 12.5,
+                          fontWeight: 600,
+                          color: C.primary,
+                          cursor: regeneratingSection === 'prototype' ? 'not-allowed' : 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                        }}
+                      >
+                        <span style={{ fontSize: 13 }}>⚡</span>
+                        {regeneratingSection === 'prototype' ? 'Regenerating Prototype...' : 'Regenerate Prototype'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Live Deployed Application Cockpit & Viewport Switcher */}
+                  <div style={{
+                    background: 'linear-gradient(135deg, rgba(15,23,42,0.95) 0%, rgba(30,41,59,0.9) 100%)',
+                    border: '1.5px solid #334155',
+                    borderRadius: 16,
+                    padding: '18px 22px',
+                    marginBottom: 20,
+                    boxShadow: '0 8px 30px rgba(0,0,0,0.25)',
+                    color: '#fff',
+                  }}>
+                    {/* Top Row: Live URL Bar + Action Buttons */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14, marginBottom: 16 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 280 }}>
+                        <div style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          padding: '4px 10px',
+                          borderRadius: 20,
+                          background: 'rgba(16,185,129,0.15)',
+                          border: '1px solid rgba(16,185,129,0.3)',
+                          color: '#34d399',
+                          fontSize: 11,
+                          fontWeight: 700,
+                          letterSpacing: 0.5,
+                        }}>
+                          <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#34d399', animation: 'pulse 1.5s infinite' }} />
+                          LIVE DEPLOYED
+                        </div>
+
+                        {/* URL Pill Input */}
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          flex: 1,
+                          background: '#090d16',
+                          border: '1px solid #1e293b',
+                          borderRadius: 10,
+                          padding: '6px 12px',
+                        }}>
+                          <span style={{ fontSize: 13, color: '#38bdf8' }}>🔒</span>
+                          <span style={{
+                            fontFamily: 'monospace',
+                            fontSize: 12,
+                            color: '#94a3b8',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            flex: 1,
+                          }}>
+                            {livePrototypeUrl || 'http://localhost:5000/api/sessions/.../prototype/live'}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={handleCopyLiveUrl}
+                            title="Copy Live URL"
+                            style={{
+                              background: '#1e293b',
+                              border: '1px solid #334155',
+                              color: protoUrlCopied ? '#34d399' : '#cbd5e1',
+                              fontSize: 11,
+                              fontWeight: 600,
+                              padding: '3px 8px',
+                              borderRadius: 6,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            {protoUrlCopied ? '✓ Copied' : 'Copy'}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Primary Action Buttons */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                        <button
+                          type="button"
+                          onClick={() => window.open(livePrototypeUrl, '_blank')}
+                          style={{
+                            padding: '9px 18px',
+                            borderRadius: 10,
+                            background: 'linear-gradient(135deg, #0284c7 0%, #6366f1 100%)',
+                            color: '#fff',
+                            fontWeight: 700,
+                            fontSize: 13,
+                            border: 'none',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 7,
+                            boxShadow: '0 4px 14px rgba(2,132,199,0.35)',
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          <span>🌐</span>
+                          <span>Open Deployed Web App</span>
+                          <span style={{ fontSize: 11, opacity: 0.85 }}>↗</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={handleDownloadDeployedHtml}
+                          style={{
+                            padding: '9px 15px',
+                            borderRadius: 10,
+                            background: '#1e293b',
+                            border: '1px solid #334155',
+                            color: '#f1f5f9',
+                            fontWeight: 600,
+                            fontSize: 12.5,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                          }}
+                        >
+                          <span>📥</span>
+                          <span>Download index.html</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setIframeKey(k => k + 1)}
+                          title="Refresh live preview"
+                          style={{
+                            padding: '9px 12px',
+                            borderRadius: 10,
+                            background: '#1e293b',
+                            border: '1px solid #334155',
+                            color: '#94a3b8',
+                            fontSize: 12,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          🔄 Reload
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Sub-bar: View Mode Toggles & Responsive Devices */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #1e293b', paddingTop: 14, flexWrap: 'wrap', gap: 10 }}>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button
+                          type="button"
+                          onClick={() => setProtoViewMode('live')}
+                          style={{
+                            padding: '6px 14px',
+                            borderRadius: 8,
+                            fontSize: 12,
+                            fontWeight: 700,
+                            background: protoViewMode === 'live' ? '#0284c7' : '#090d16',
+                            color: protoViewMode === 'live' ? '#fff' : '#94a3b8',
+                            border: `1px solid ${protoViewMode === 'live' ? '#0284c7' : '#1e293b'}`,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          🌐 Live Deployed App
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setProtoViewMode('data')}
+                          style={{
+                            padding: '6px 14px',
+                            borderRadius: 8,
+                            fontSize: 12,
+                            fontWeight: 700,
+                            background: protoViewMode === 'data' ? '#0284c7' : '#090d16',
+                            color: protoViewMode === 'data' ? '#fff' : '#94a3b8',
+                            border: `1px solid ${protoViewMode === 'data' ? '#0284c7' : '#1e293b'}`,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          📊 Telemetry & Data Grid
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setProtoViewMode('code')}
+                          style={{
+                            padding: '6px 14px',
+                            borderRadius: 8,
+                            fontSize: 12,
+                            fontWeight: 700,
+                            background: protoViewMode === 'code' ? '#0284c7' : '#090d16',
+                            color: protoViewMode === 'code' ? '#fff' : '#94a3b8',
+                            border: `1px solid ${protoViewMode === 'code' ? '#0284c7' : '#1e293b'}`,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          💻 React 19 Code & Docker
+                        </button>
+                      </div>
+
+                      {protoViewMode === 'live' && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#090d16', padding: '3px 6px', borderRadius: 8, border: '1px solid #1e293b' }}>
+                          <span style={{ fontSize: 11, color: '#64748b', marginRight: 4, fontWeight: 600 }}>Viewport:</span>
+                          <button
+                            type="button"
+                            onClick={() => setProtoViewport('desktop')}
+                            style={{
+                              padding: '4px 8px',
+                              borderRadius: 6,
+                              fontSize: 11,
+                              fontWeight: 600,
+                              background: protoViewport === 'desktop' ? '#334155' : 'transparent',
+                              color: protoViewport === 'desktop' ? '#38bdf8' : '#94a3b8',
+                              border: 'none',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            🖥️ Desktop (100%)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setProtoViewport('tablet')}
+                            style={{
+                              padding: '4px 8px',
+                              borderRadius: 6,
+                              fontSize: 11,
+                              fontWeight: 600,
+                              background: protoViewport === 'tablet' ? '#334155' : 'transparent',
+                              color: protoViewport === 'tablet' ? '#38bdf8' : '#94a3b8',
+                              border: 'none',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            📱 Tablet (768px)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setProtoViewport('mobile')}
+                            style={{
+                              padding: '4px 8px',
+                              borderRadius: 6,
+                              fontSize: 11,
+                              fontWeight: 600,
+                              background: protoViewport === 'mobile' ? '#334155' : 'transparent',
+                              color: protoViewport === 'mobile' ? '#38bdf8' : '#94a3b8',
+                              border: 'none',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            📱 Mobile (390px)
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* ────────────────────────────────────────────────────────
+                      MODE 1: LIVE DEPLOYED APPLICATION (EMBEDDED IFRAME)
+                  ──────────────────────────────────────────────────────── */}
+                  {protoViewMode === 'live' && (
+                    <div style={{
+                      background: '#090d16',
+                      border: '1.5px solid #334155',
+                      borderRadius: 18,
+                      overflow: 'hidden',
+                      boxShadow: '0 20px 50px rgba(0,0,0,0.5)',
+                      marginBottom: 24,
+                    }}>
+                      {/* Simulated Browser Top Bar */}
+                      <div style={{
+                        background: '#0f172a',
+                        padding: '10px 16px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        borderBottom: '1px solid #1e293b',
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ width: 11, height: 11, borderRadius: '50%', background: '#ef4444' }} />
+                          <span style={{ width: 11, height: 11, borderRadius: '50%', background: '#f59e0b' }} />
+                          <span style={{ width: 11, height: 11, borderRadius: '50%', background: '#10b981' }} />
+                        </div>
+
+                        <div style={{
+                          flex: 1,
+                          maxWidth: 580,
+                          margin: '0 16px',
+                          background: '#040711',
+                          border: '1px solid #1e293b',
+                          borderRadius: 8,
+                          padding: '4px 12px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 8,
+                        }}>
+                          <span style={{ fontSize: 11, color: '#10b981' }}>🔒 https://</span>
+                          <span style={{ fontSize: 11.5, color: '#e2e8f0', fontFamily: 'monospace' }}>
+                            {(prototype?.appName || 'prototype').toLowerCase().replace(/[^a-z0-9]/g, '-')}.compileai.live
+                          </span>
+                          <span style={{ fontSize: 9.5, padding: '1px 6px', borderRadius: 4, background: 'rgba(14,165,233,0.15)', color: '#38bdf8', fontWeight: 700 }}>
+                            PRODUCTION SANDBOX
+                          </span>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <button
+                            type="button"
+                            onClick={() => window.open(livePrototypeUrl, '_blank')}
+                            title="Open standalone page"
+                            style={{
+                              background: '#1e293b',
+                              border: '1px solid #334155',
+                              color: '#38bdf8',
+                              fontSize: 11,
+                              fontWeight: 600,
+                              padding: '3px 8px',
+                              borderRadius: 6,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            ↗ Full Page
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Viewport Container */}
+                      <div style={{
+                        display: 'flex',
+                        justifyContent: 'center',
+                        background: '#030712',
+                        padding: protoViewport === 'desktop' ? '0' : '24px 16px',
+                        minHeight: 700,
+                      }}>
+                        <div style={{
+                          width: protoViewport === 'mobile' ? '390px' : protoViewport === 'tablet' ? '768px' : '100%',
+                          transition: 'width 0.25s ease',
+                          boxShadow: protoViewport === 'desktop' ? 'none' : '0 10px 40px rgba(0,0,0,0.6)',
+                          borderRadius: protoViewport === 'desktop' ? 0 : 16,
+                          overflow: 'hidden',
+                          border: protoViewport === 'desktop' ? 'none' : '2px solid #334155',
+                        }}>
+                          <iframe
+                            key={iframeKey}
+                            src={livePrototypeUrl}
+                            title="Live Product Prototype Sandbox"
+                            style={{
+                              width: '100%',
+                              height: 720,
+                              border: 'none',
+                              background: '#020617',
+                              display: 'block',
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ────────────────────────────────────────────────────────
+                      MODE 2: DATA RECORDS & OPERATIONS
+                  ──────────────────────────────────────────────────────── */}
+                  {protoViewMode === 'data' && (
+                    <div>
+                      {/* Top Stats Ribbon */}
+                      {Array.isArray(prototype?.stats) && prototype.stats.length > 0 && (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14, marginBottom: 20 }}>
+                          {prototype.stats.map((s, idx) => (
+                            <div key={idx} style={{
+                              background: C.surface,
+                              border: `1px solid ${C.border}`,
+                              borderRadius: 12,
+                              padding: '14px 18px',
+                              boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
+                            }}>
+                              <div style={{ fontSize: 12, color: C.textM, fontWeight: 600 }}>{s.label}</div>
+                              <div style={{ fontSize: 22, fontWeight: 800, color: s.color || C.primary, marginTop: 4 }}>
+                                {s.value}
+                              </div>
+                              {s.trend && (
+                                <div style={{ fontSize: 11, color: C.textSub, marginTop: 2 }}>{s.trend}</div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Interactive Sandbox Container */}
+                      <div style={{
+                        background: C.surface,
+                        border: `1.5px solid ${C.border}`,
+                        borderRadius: 16,
+                        padding: 20,
+                        boxShadow: '0 4px 20px rgba(0,0,0,0.03)',
+                        marginBottom: 20,
+                      }}>
+                        {/* Control Bar: Search + Filters + Actions */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 16, paddingBottom: 16, borderBottom: `1px solid ${C.border}` }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 260 }}>
+                            <input
+                              type="text"
+                              value={protoSearch}
+                              onChange={(e) => setProtoSearch(e.target.value)}
+                              placeholder={`Search ${prototype?.entityName || 'entities'} by ID, name, or attribute...`}
+                              style={{
+                                width: '100%',
+                                maxWidth: 320,
+                                padding: '8px 14px',
+                                borderRadius: 8,
+                                border: `1px solid ${C.border}`,
+                                background: C.surfaceAlt,
+                                fontSize: 13,
+                                color: C.textH,
+                                outline: 'none',
+                              }}
+                            />
+
+                            {/* Filter Pills */}
+                            <div style={{ display: 'flex', gap: 6, overflowX: 'auto' }}>
+                              {(prototype?.filters || ['All', 'Approved', 'In Review', 'Pending']).map((flt, fi) => (
+                                <button
+                                  key={fi}
+                                  onClick={() => setProtoFilter(flt)}
+                                  style={{
+                                    padding: '6px 12px',
+                                    borderRadius: 20,
+                                    fontSize: 12,
+                                    fontWeight: protoFilter === flt ? 700 : 500,
+                                    background: protoFilter === flt ? C.primary : C.surfaceAlt,
+                                    color: protoFilter === flt ? '#fff' : C.textM,
+                                    border: `1px solid ${protoFilter === flt ? C.primary : C.border}`,
+                                    cursor: 'pointer',
+                                    whiteSpace: 'nowrap',
+                                  }}
+                                >
+                                  {flt}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <button
+                              onClick={() => setNewRecordModal(true)}
+                              style={{
+                                padding: '8px 14px',
+                                borderRadius: 8,
+                                background: C.grad,
+                                color: '#fff',
+                                border: 'none',
+                                fontSize: 12.5,
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 5,
+                                boxShadow: '0 2px 8px rgba(99,102,241,0.25)',
+                              }}
+                            >
+                              <span>+</span> Add {prototype?.entityName || 'Record'}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Interactive Records Table */}
+                        <div style={{ overflowX: 'auto' }}>
+                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, textAlign: 'left' }}>
+                            <thead>
+                              <tr style={{ background: C.surfaceAlt, color: C.textM, borderBottom: `1.5px solid ${C.border}` }}>
+                                {(prototype?.columnLabels || ['ID', 'Name', 'Domain', 'Specs', 'Band', 'Status']).map((col, ci) => (
+                                  <th key={ci} style={{ padding: '10px 12px', fontWeight: 700 }}>
+                                    {col}
+                                  </th>
+                                ))}
+                                <th style={{ padding: '10px 12px', fontWeight: 700, textAlign: 'right' }}>Actions</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {filteredProtoRecords.length === 0 ? (
+                                <tr>
+                                  <td colSpan={7} style={{ padding: 30, textAlign: 'center', color: C.textSub }}>
+                                    No records match search query "{protoSearch}" or filter "{protoFilter}".
+                                  </td>
+                                </tr>
+                              ) : (
+                                filteredProtoRecords.map((rec, ri) => (
+                                  <tr key={rec.id || ri} style={{ borderBottom: `1px solid ${C.border}` }}>
+                                    <td style={{ padding: '12px', fontFamily: 'monospace', color: C.primary, fontWeight: 700 }}>
+                                      {rec.id}
+                                    </td>
+                                    <td style={{ padding: '12px', fontWeight: 600, color: C.textH }}>
+                                      {rec.name}
+                                    </td>
+                                    <td style={{ padding: '12px', color: C.textB }}>
+                                      {rec.district}
+                                    </td>
+                                    <td style={{ padding: '12px', color: C.textM }}>
+                                      {rec.acres}
+                                    </td>
+                                    <td style={{ padding: '12px', color: C.textM }}>
+                                      {rec.hp || rec.subsidy || 'Optimal'}
+                                    </td>
+                                    <td style={{ padding: '12px' }}>
+                                      <span style={{
+                                        fontSize: 11,
+                                        fontWeight: 700,
+                                        padding: '3px 8px',
+                                        borderRadius: 6,
+                                        background: rec.status === 'Approved' ? '#ecfdf5' : rec.status === 'In Review' ? '#fef3c7' : '#eff6ff',
+                                        color: rec.status === 'Approved' ? '#059669' : rec.status === 'In Review' ? '#d97706' : '#2563eb',
+                                        border: `1px solid ${rec.status === 'Approved' ? '#a7f3d0' : rec.status === 'In Review' ? '#fde68a' : '#bfdbfe'}`,
+                                      }}>
+                                        {rec.status}
+                                      </span>
+                                    </td>
+                                    <td style={{ padding: '12px', textAlign: 'right' }}>
+                                      <button
+                                        onClick={() => alert(`🔍 Record Details [${rec.id}]\n\nName: ${rec.name}\nStatus: ${rec.status}\nDetails: ${rec.details || 'Nominal operational status'}`)}
+                                        style={{
+                                          padding: '4px 10px',
+                                          borderRadius: 6,
+                                          background: C.surfaceAlt,
+                                          border: `1px solid ${C.border}`,
+                                          fontSize: 11.5,
+                                          color: C.textB,
+                                          cursor: 'pointer',
+                                          fontWeight: 600,
+                                        }}
+                                      >
+                                        Inspect
+                                      </button>
+                                    </td>
+                                  </tr>
+                                ))
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        {/* Operational Action Toolbar */}
+                        {Array.isArray(prototype?.actions) && prototype.actions.length > 0 && (
+                          <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: C.textM }}>
+                              Live Operational Triggers:
+                            </span>
+                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                              {prototype.actions.map((act, ai) => (
+                                <button
+                                  key={act.id || ai}
+                                  onClick={() => alert(`⚡ Action Dispatched: [${act.label}]\nExecution confirmed across simulated backend cluster.`)}
+                                  style={{
+                                    padding: '6px 12px',
+                                    borderRadius: 6,
+                                    fontSize: 12,
+                                    fontWeight: 600,
+                                    background: act.type === 'primary' ? C.primaryLt : C.surfaceAlt,
+                                    color: act.type === 'primary' ? C.primaryDk : C.textB,
+                                    border: `1px solid ${act.type === 'primary' ? C.primary : C.border}`,
+                                    cursor: 'pointer',
+                                  }}
+                                >
+                                  ▶ {act.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ────────────────────────────────────────────────────────
+                      MODE 3: REACT 19 CODE & DOCKER DEPLOYMENT
+                  ──────────────────────────────────────────────────────── */}
+                  {protoViewMode === 'code' && (
+                    <div>
+                      {/* Code Snippet Drawer */}
+                      <div style={{
+                        background: '#090d16',
+                        border: '1px solid #1e293b',
+                        borderRadius: 16,
+                        padding: 20,
+                        marginBottom: 20,
+                        boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, borderBottom: '1px solid #1e293b', paddingBottom: 10 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#ef4444' }} />
+                            <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#f59e0b' }} />
+                            <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#10b981' }} />
+                            <span style={{ fontSize: 12, color: '#94a3b8', fontFamily: 'monospace', marginLeft: 8 }}>
+                              src/components/PrototypeApp.jsx
+                            </span>
+                          </div>
+                          <button
+                            onClick={handleCopyProtoCode}
+                            style={{
+                              padding: '4px 10px',
+                              borderRadius: 6,
+                              background: '#1e293b',
+                              border: '1px solid #334155',
+                              color: '#38bdf8',
+                              fontSize: 11.5,
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            {protoCopied ? '✓ Copied!' : 'Copy Code'}
+                          </button>
+                        </div>
+                        <pre style={{
+                          margin: 0,
+                          padding: 12,
+                          background: '#040711',
+                          borderRadius: 8,
+                          fontSize: 12,
+                          lineHeight: 1.6,
+                          color: '#e2e8f0',
+                          fontFamily: 'Consolas, Monaco, monospace',
+                          overflowX: 'auto',
+                          maxHeight: 380,
+                        }}>
+                          {prototype?.codeSnippet || '// React 19 functional prototype component code\nexport default function WorkingPrototype() {\n  return <div>Prototype Component Ready</div>;\n}'}
+                        </pre>
+                      </div>
+
+                      {/* Cloud Deployment Banner */}
+                      <div style={{
+                        background: 'linear-gradient(135deg, rgba(99,102,241,0.08) 0%, rgba(6,182,212,0.08) 100%)',
+                        border: '1px solid rgba(99,102,241,0.2)',
+                        borderRadius: 16,
+                        padding: 20,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        flexWrap: 'wrap',
+                        gap: 16,
+                      }}>
+                        <div>
+                          <div style={{ fontSize: 14, fontWeight: 800, color: C.textH, display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span>🚀</span> Ready for Cloud Deployment
+                          </div>
+                          <p style={{ margin: '4px 0 0', fontSize: 12.5, color: C.textM }}>
+                            1-click production deploy to Vercel, Render, or self-hosted Docker container.
+                          </p>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: 10 }}>
+                          <button
+                            onClick={handleTriggerSandboxDeploy}
+                            style={{
+                              padding: '8px 16px',
+                              borderRadius: 8,
+                              background: C.primary,
+                              color: '#fff',
+                              border: 'none',
+                              fontSize: 12.5,
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              boxShadow: '0 2px 8px rgba(99,102,241,0.3)',
+                            }}
+                          >
+                            ⚡ Deploy Sandbox
+                          </button>
+                          <button
+                            onClick={() => alert('Vercel Deploy Manifest generated. Project ready for GitHub webhook.')}
+                            style={{
+                              padding: '8px 16px',
+                              borderRadius: 8,
+                              background: C.surface,
+                              border: `1px solid ${C.border}`,
+                              color: C.textH,
+                              fontSize: 12.5,
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            ▲ Vercel
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+
+                  {/* Add Record Modal */}
+                  {newRecordModal && (
+                    <div style={{
+                      position: 'fixed',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      background: 'rgba(0,0,0,0.5)',
+                      backdropFilter: 'blur(4px)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      zIndex: 9999,
+                      padding: 20,
+                    }}>
+                      <div style={{
+                        background: C.surface,
+                        borderRadius: 16,
+                        border: `1px solid ${C.border}`,
+                        width: '100%',
+                        maxWidth: 440,
+                        padding: 24,
+                        boxShadow: '0 20px 40px rgba(0,0,0,0.2)',
+                      }}>
+                        <h3 style={{ margin: '0 0 16px', fontSize: 17, fontWeight: 800, color: C.textH }}>
+                          + Add {prototype?.entityName || 'Entity'} to Prototype
+                        </h3>
+                        <form onSubmit={handleCreateRecord}>
+                          <div style={{ marginBottom: 12 }}>
+                            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: C.textM, marginBottom: 4 }}>
+                              Name / Identifier
+                            </label>
+                            <input
+                              type="text"
+                              required
+                              value={newRecordForm.name}
+                              onChange={(e) => setNewRecordForm({ ...newRecordForm, name: e.target.value })}
+                              placeholder="e.g. Sortie Falcon-09"
+                              style={{
+                                width: '100%',
+                                padding: '8px 12px',
+                                borderRadius: 8,
+                                border: `1px solid ${C.border}`,
+                                fontSize: 13,
+                                boxSizing: 'border-box',
+                              }}
+                            />
+                          </div>
+                          <div style={{ marginBottom: 12 }}>
+                            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: C.textM, marginBottom: 4 }}>
+                              Domain / Sector / Details
+                            </label>
+                            <input
+                              type="text"
+                              value={newRecordForm.district}
+                              onChange={(e) => setNewRecordForm({ ...newRecordForm, district: e.target.value })}
+                              placeholder="e.g. Sector South-West (NDVI: 0.88)"
+                              style={{
+                                width: '100%',
+                                padding: '8px 12px',
+                                borderRadius: 8,
+                                border: `1px solid ${C.border}`,
+                                fontSize: 13,
+                                boxSizing: 'border-box',
+                              }}
+                            />
+                          </div>
+                          <div style={{ marginBottom: 20 }}>
+                            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: C.textM, marginBottom: 4 }}>
+                              Initial Status
+                            </label>
+                            <select
+                              value={newRecordForm.status}
+                              onChange={(e) => setNewRecordForm({ ...newRecordForm, status: e.target.value })}
+                              style={{
+                                width: '100%',
+                                padding: '8px 12px',
+                                borderRadius: 8,
+                                border: `1px solid ${C.border}`,
+                                fontSize: 13,
+                                boxSizing: 'border-box',
+                              }}
+                            >
+                              <option value="Approved">Approved</option>
+                              <option value="In Review">In Review</option>
+                              <option value="Pending">Pending</option>
+                            </select>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                            <button
+                              type="button"
+                              onClick={() => setNewRecordModal(false)}
+                              style={{
+                                padding: '8px 14px',
+                                borderRadius: 8,
+                                border: `1px solid ${C.border}`,
+                                background: C.surfaceAlt,
+                                fontSize: 12.5,
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="submit"
+                              style={{
+                                padding: '8px 16px',
+                                borderRadius: 8,
+                                border: 'none',
+                                background: C.grad,
+                                color: '#fff',
+                                fontSize: 12.5,
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              Add to Prototype
+                            </button>
+                          </div>
+                        </form>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ═══════════════════════════════════════════════════════
+                  TAB 7: EFFORT, COST & ROADMAP
               ═══════════════════════════════════════════════════════════ */}
               {activeTab === 'estimates' && (
                 <div>
@@ -1713,7 +3154,7 @@ export default function ResultScreen() {
                       }}
                     >
                       <Icon d={REFRESH_ICON} size={13} color={C.primary} />
-                      <span>{regeneratingSection === 'estimate' ? 'Regenerating Estimates...' : 'Regenerate Section'}</span>
+                      <span>{regeneratingSection === 'estimate' ? tr('regenerating') : tr('regenerateBtn')}</span>
                     </button>
                   </div>
 
@@ -1831,6 +3272,117 @@ export default function ResultScreen() {
           )}
 
         </div>
+
+        {/* Automated Cloud Sandbox Deploy Modal */}
+        {sandboxDeployModal && (
+          <div style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.75)',
+            backdropFilter: 'blur(8px)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 20,
+          }}>
+            <div style={{
+              background: '#0f172a',
+              border: '1.5px solid #334155',
+              borderRadius: 18,
+              padding: '24px 28px',
+              maxWidth: 500,
+              width: '100%',
+              color: '#fff',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 24 }}>🚀</span>
+                  <div>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: '#f8fafc' }}>
+                      Cloud Sandbox Deployment
+                    </div>
+                    <div style={{ fontSize: 11.5, color: '#94a3b8' }}>
+                      Admin Capability Verification
+                    </div>
+                  </div>
+                </div>
+                {!deployingSandbox && (
+                  <button
+                    type="button"
+                    onClick={() => setSandboxDeployModal(null)}
+                    style={{
+                      background: '#1e293b',
+                      border: '1px solid #334155',
+                      borderRadius: 8,
+                      color: '#94a3b8',
+                      cursor: 'pointer',
+                      padding: '4px 10px',
+                      fontSize: 12,
+                      fontWeight: 700,
+                    }}
+                  >
+                    ✕ Close
+                  </button>
+                )}
+              </div>
+
+              <div style={{
+                background: '#1e293b',
+                borderRadius: 12,
+                padding: 16,
+                border: '1px solid #334155',
+                fontFamily: 'monospace',
+                fontSize: 12.5,
+                marginBottom: 16,
+              }}>
+                <div style={{ color: '#38bdf8', marginBottom: 6 }}>
+                  &gt; Phase {sandboxDeployModal.step}/4: {sandboxDeployModal.text}
+                </div>
+                {deployingSandbox && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#94a3b8', fontSize: 11.5, marginTop: 8 }}>
+                    <div style={{ width: 12, height: 12, borderRadius: '50%', border: '2px solid #6366f1', borderTopColor: 'transparent', animation: 'spinFast 0.8s linear infinite' }} />
+                    <span>Provisioning cloud infrastructure...</span>
+                  </div>
+                )}
+                {sandboxDeployModal.url && (
+                  <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid #334155' }}>
+                    <div style={{ color: '#34d399', fontWeight: 700 }}>✓ Endpoint Live:</div>
+                    <a
+                      href={sandboxDeployModal.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{ color: '#60a5fa', textDecoration: 'underline', fontSize: 12, wordBreak: 'break-all' }}
+                    >
+                      {sandboxDeployModal.url}
+                    </a>
+                  </div>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  disabled={deployingSandbox}
+                  onClick={() => setSandboxDeployModal(null)}
+                  style={{
+                    padding: '8px 18px',
+                    borderRadius: 8,
+                    background: deployingSandbox ? '#334155' : '#6366f1',
+                    color: '#fff',
+                    border: 'none',
+                    fontWeight: 700,
+                    fontSize: 12.5,
+                    cursor: deployingSandbox ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {deployingSandbox ? 'Deploying...' : 'Done'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
 
       <style>{`

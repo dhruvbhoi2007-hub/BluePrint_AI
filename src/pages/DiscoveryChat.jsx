@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Navbar from '../components/layout/Navbar';
 import DashboardSidebar from '../components/layout/DashboardSidebar';
@@ -23,6 +23,7 @@ const USER_ICON = 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8
 const FILE_ICON = 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6';
 const EDIT_ICON = 'M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z';
 const MENU_ICON = 'M4 6h16M4 12h16M4 18h16';
+const CHAT_ICON = 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z';
 
 /* ─── Inline Markdown Formatter ─── */
 function formatInline(str) {
@@ -246,9 +247,25 @@ export default function DiscoveryChat() {
 
   const chatEndRef = useRef(null);
 
+  const welcomeText = useMemo(() => {
+    const docNames = (documents || []).map(d => d.file_name).filter(Boolean);
+    const qCount = questions.length || 5;
+    return `Hello! I am your **AI Business Consultant & Solution Architect** (Chaos2Commit 2026).
+
+I am reviewing your transformation blueprint: **"${session?.title || 'Transformation Blueprint'}"**.
+
+${docNames.length > 0 ? `I have ingested ${docNames.length} attached document(s): ${docNames.join(', ')}.` : 'I have ingested your initial business goals and problem statement.'}
+
+To produce an implementation-ready enterprise architecture and structured BRD, I have formulated **${qCount} clarifying discovery questions**. You can answer them below or converse directly with me.`;
+  }, [session?.title, documents, questions.length]);
+
+  const conversationMessages = useMemo(() => {
+    return messages.filter(m => m.id !== 'welcome');
+  }, [messages]);
+
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, answeringQaId]);
+  }, [messages, answeringQaId, isGeneratingChat]);
 
   // Initial Load: Check Auth and Resolve Session
   useEffect(() => {
@@ -389,6 +406,7 @@ To produce an implementation-ready enterprise architecture and structured BRD, I
         body: JSON.stringify({
           title: starterTitle.trim() || 'Enterprise Cloud & Process Automation',
           initialText: starterText.trim() || 'Transform core enterprise workflows with automated AI processing, cloud microservices, and modern API integration.',
+          userLanguage: currentLanguage,
         }),
       });
 
@@ -409,7 +427,7 @@ To produce an implementation-ready enterprise architecture and structured BRD, I
 
   const handleAnswerSubmit = async (qaId) => {
     if (isViewer) {
-      alert('🔒 Access Restricted: Answering discovery questions is disabled in Viewer (Read-Only) mode. Switch your role to Developer or Admin in the navigation bar.');
+      alert('🔒 Access Restricted: Answering discovery questions is disabled in Viewer (Read-Only) mode. Your account role is permanently assigned as Viewer.');
       return;
     }
     const answerText = (draftAnswers[qaId] || '').trim();
@@ -432,24 +450,6 @@ To produce an implementation-ready enterprise architecture and structured BRD, I
       if (!res.ok) throw new Error('Could not save answer.');
 
       setQuestions(prev => prev.map(q => q.id === qaId ? { ...q, answer: answerText } : q));
-
-      const matchedQ = questions.find(q => q.id === qaId);
-      setMessages(prev => [
-        ...prev,
-        {
-          id: 'user_' + Date.now(),
-          sender: 'user',
-          timestamp: new Date().toISOString(),
-          text: `**[Re: ${matchedQ?.question || 'Discovery Question'}]**\n\n${answerText}`,
-        },
-        {
-          id: 'ai_' + Date.now(),
-          sender: 'ai',
-          timestamp: new Date().toISOString(),
-          text: 'Thank you. I have incorporated this constraint into the transformation context. It will directly inform our architectural tech stack and non-functional requirements.',
-        }
-      ]);
-
       setAnsweringQaId(null);
     } catch (err) {
       alert(err.message || 'Error recording answer.');
@@ -483,7 +483,7 @@ To produce an implementation-ready enterprise architecture and structured BRD, I
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text, userLanguage: currentLanguage }),
       });
 
       if (res.ok) {
@@ -511,7 +511,7 @@ To produce an implementation-ready enterprise architecture and structured BRD, I
 
   const handleGenerateBlueprint = async () => {
     if (isViewer) {
-      alert('🔒 Access Restricted: Compiling and generating blueprints is disabled in Viewer (Read-Only) mode. Switch your role to Developer or Admin in the navigation bar.');
+      alert('🔒 Access Restricted: Compiling and generating blueprints is disabled in Viewer (Read-Only) mode. Your account role is permanently assigned as Viewer.');
       return;
     }
     const token = getStoredToken();
@@ -555,6 +555,7 @@ To produce an implementation-ready enterprise architecture and structured BRD, I
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
+        body: JSON.stringify({ userLanguage: currentLanguage }),
       });
 
       clearInterval(progressTimer);
@@ -810,37 +811,20 @@ To produce an implementation-ready enterprise architecture and structured BRD, I
 
                   {/* Messages Feed */}
                   <div className="flex-1 p-4 sm:p-5 overflow-y-auto flex flex-col gap-4.5">
-                    {messages.map((m) => {
-                      const isAi = m.sender === 'ai';
-                      return (
-                        <div key={m.id} className={`flex gap-3 items-start ${isAi ? 'flex-row' : 'flex-row-reverse'}`}>
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${isAi ? 'bg-gradient-to-br from-indigo-500 to-cyan-500' : 'bg-indigo-50'}`}>
-                            {isAi ? <Icon d={BOT_ICON} size={16} color="#fff" /> : <Icon d={USER_ICON} size={16} color="#4f46e5" />}
-                          </div>
-
-                          <div className={`max-w-[85%] sm:max-w-[82%] rounded-2xl px-4 py-3 text-[13.5px] leading-relaxed shadow-[0_1px_4px_rgba(15,23,42,0.03)] border ${isAi ? 'bg-slate-50/90 border-slate-200/70 text-slate-800' : 'bg-indigo-50/90 border-indigo-200/70 text-slate-700'}`}>
-                            {isAi ? <ChatMarkdownRenderer text={m.text} /> : <div className="whitespace-pre-line">{m.text}</div>}
-                          </div>
-                        </div>
-                      );
-                    })}
-
-                    {/* AI Generating Thinking Indicator */}
-                    {isGeneratingChat && (
-                      <div className="flex gap-3 items-start flex-row animate-pulse">
-                        <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-gradient-to-br from-indigo-500 to-cyan-500">
-                          <Icon d={BOT_ICON} size={16} color="#fff" />
-                        </div>
-                        <div className="rounded-2xl px-4 py-3 text-[13px] bg-indigo-50/80 border border-indigo-200/90 text-indigo-700 flex items-center gap-2.5 shadow-sm">
-                          <div className="w-4 h-4 rounded-full border-2 border-indigo-600 border-t-transparent animate-spin shrink-0" />
-                          <span className="font-medium">AI Consultant is searching dataset and synthesizing technical specifications...</span>
-                        </div>
+                    {/* 1. Consultant Welcome Orientation */}
+                    <div className="flex gap-3 items-start flex-row">
+                      <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-gradient-to-br from-indigo-500 to-cyan-500 shadow-sm">
+                        <Icon d={BOT_ICON} size={16} color="#fff" />
                       </div>
-                    )}
 
-                    {/* Question Cards */}
+                      <div className="max-w-[85%] sm:max-w-[82%] rounded-2xl px-4 py-3 text-[13.5px] leading-relaxed shadow-[0_1px_4px_rgba(15,23,42,0.03)] border bg-slate-50/90 border-slate-200/70 text-slate-800">
+                        <ChatMarkdownRenderer text={welcomeText} />
+                      </div>
+                    </div>
+
+                    {/* 2. Consultant Discovery Clarification Cards */}
                     {questions.length > 0 && (
-                      <div className="mt-2.5 flex flex-col gap-3.5">
+                      <div className="mt-1 flex flex-col gap-3.5">
                         <div className="flex items-center gap-2 text-[11.5px] font-bold text-slate-400 uppercase tracking-[0.04em]">
                           <Icon d={SPARK_ICON} size={13} color="#6366f1" />
                           Consultant Discovery Cards ({questions.length})
@@ -925,6 +909,44 @@ To produce an implementation-ready enterprise architecture and structured BRD, I
                             </div>
                           );
                         })}
+                      </div>
+                    )}
+
+                    {/* 3. Interactive Conversation Messages (In bottom of chat after clarification questions) */}
+                    {conversationMessages.length > 0 && (
+                      <div className="flex flex-col gap-4 mt-2">
+                        <div className="flex items-center gap-2 text-[11.5px] font-bold text-slate-400 uppercase tracking-[0.04em] pt-2 border-t border-slate-200/70">
+                          <Icon d={CHAT_ICON} size={13} color="#6366f1" />
+                          Consultation Inquiries & Generated Deliverables ({conversationMessages.length})
+                        </div>
+
+                        {conversationMessages.map((m) => {
+                          const isAi = m.sender === 'ai';
+                          return (
+                            <div key={m.id} className={`flex gap-3 items-start ${isAi ? 'flex-row' : 'flex-row-reverse'}`}>
+                              <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${isAi ? 'bg-gradient-to-br from-indigo-500 to-cyan-500 shadow-sm' : 'bg-indigo-50'}`}>
+                                {isAi ? <Icon d={BOT_ICON} size={16} color="#fff" /> : <Icon d={USER_ICON} size={16} color="#4f46e5" />}
+                              </div>
+
+                              <div className={`max-w-[85%] sm:max-w-[82%] rounded-2xl px-4 py-3 text-[13.5px] leading-relaxed shadow-[0_1px_4px_rgba(15,23,42,0.03)] border ${isAi ? 'bg-slate-50/90 border-slate-200/70 text-slate-800' : 'bg-indigo-50/90 border-indigo-200/70 text-slate-700'}`}>
+                                {isAi ? <ChatMarkdownRenderer text={m.text} /> : <div className="whitespace-pre-line">{m.text}</div>}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* 4. AI Generating Thinking Indicator */}
+                    {isGeneratingChat && (
+                      <div className="flex gap-3 items-start flex-row animate-pulse">
+                        <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-gradient-to-br from-indigo-500 to-cyan-500 shadow-sm">
+                          <Icon d={BOT_ICON} size={16} color="#fff" />
+                        </div>
+                        <div className="rounded-2xl px-4 py-3 text-[13px] bg-indigo-50/80 border border-indigo-200/90 text-indigo-700 flex items-center gap-2.5 shadow-sm">
+                          <div className="w-4 h-4 rounded-full border-2 border-indigo-600 border-t-transparent animate-spin shrink-0" />
+                          <span className="font-medium">AI Consultant is searching dataset and synthesizing technical specifications...</span>
+                        </div>
                       </div>
                     )}
 

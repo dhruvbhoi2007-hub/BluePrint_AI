@@ -71,13 +71,85 @@ const DEFAULT_API_ENDPOINTS = [
   }
 ];
 
+// ─── Markdown → HTML renderer for AI-authored free text ────────────────────
+// Gemini returns markdown (##, **bold**, - bullets, etc.) for objectives,
+// scope, hld_summary, security_notes, etc. Without this, those fields were
+// dumped as raw markdown text into the exported PDF/Word document.
+function mdToHtml(text) {
+  if (!text) return '';
+
+  const escapeHtml = (s) =>
+    s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  const inline = (s) =>
+    escapeHtml(s)
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.*?)\*/g, '<em>$1</em>')
+      .replace(/`(.*?)`/g, '<code style="background:#eef2ff;color:#4f46e5;padding:1px 5px;border-radius:4px;">$1</code>');
+
+  const lines = String(text).split('\n');
+  let html = '';
+  let inList = false;
+
+  const closeListIfOpen = () => {
+    if (inList) {
+      html += '</ul>';
+      inList = false;
+    }
+  };
+
+  for (const raw of lines) {
+    const line = raw.trim();
+
+    if (!line) {
+      closeListIfOpen();
+      continue;
+    }
+
+    if (/^###\s+/.test(line)) {
+      closeListIfOpen();
+      html += `<h4 style="margin:10px 0 4px;color:#1e293b;">${inline(line.replace(/^###\s+/, ''))}</h4>`;
+      continue;
+    }
+    if (/^##\s+/.test(line)) {
+      closeListIfOpen();
+      html += `<h3 style="margin:12px 0 6px;color:#4338ca;">${inline(line.replace(/^##\s+/, ''))}</h3>`;
+      continue;
+    }
+    if (/^#\s+/.test(line)) {
+      closeListIfOpen();
+      html += `<h2 style="margin:14px 0 6px;color:#0f172a;">${inline(line.replace(/^#\s+/, ''))}</h2>`;
+      continue;
+    }
+    if (/^[-*]\s+/.test(line)) {
+      if (!inList) {
+        html += '<ul style="margin:6px 0;padding-left:20px;">';
+        inList = true;
+      }
+      html += `<li style="margin-bottom:4px;">${inline(line.replace(/^[-*]\s+/, ''))}</li>`;
+      continue;
+    }
+    if (/^---+$/.test(line)) {
+      closeListIfOpen();
+      html += '<hr style="border:none;border-top:1px solid #e2e8f0;margin:10px 0;"/>';
+      continue;
+    }
+
+    closeListIfOpen();
+    html += `<p style="margin:6px 0;">${inline(line)}</p>`;
+  }
+
+  closeListIfOpen();
+  return html;
+}
+
 export const pdfExporter = {
   async generate({ session, brd, architecture, estimate }) {
     const techStack = Array.isArray(architecture?.tech_stack) ? architecture.tech_stack : [];
     const bpmnNodes = architecture?.bpmn_workflows?.nodes || [];
     const rawTables = architecture?.database_schema?.tables;
     const dbTables = Array.isArray(rawTables) && rawTables.length > 0 ? rawTables : DEFAULT_DB_TABLES;
-    
+
     const rawEndpoints = architecture?.restApis?.endpoints || architecture?.api_specs?.endpoints;
     const apiEndpoints = Array.isArray(rawEndpoints) && rawEndpoints.length > 0 ? rawEndpoints : DEFAULT_API_ENDPOINTS;
 
@@ -85,6 +157,7 @@ export const pdfExporter = {
     const gapAnalysis = Array.isArray(brd?.gap_analysis) ? brd.gap_analysis : [];
     const phases = Array.isArray(estimate?.phase_breakdown) ? estimate.phase_breakdown : [];
     const team = estimate?.team_assumptions || {};
+    const wireframeScreens = Array.isArray(architecture?.wireframes?.screens) ? architecture.wireframes.screens : [];
 
     const html = `<!DOCTYPE html>
 <html lang="en">
@@ -185,6 +258,8 @@ export const pdfExporter = {
     th { background: #f8fafc; font-weight: 700; color: #334155; }
     tr:nth-child(even) { background: #fafafa; }
     .box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px 20px; margin-bottom: 16px; }
+    .box p:first-child { margin-top: 0; }
+    .box p:last-child { margin-bottom: 0; }
     .cost-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin: 16px 0; }
     .cost-card { border: 1px solid #cbd5e1; border-radius: 10px; padding: 16px; text-align: center; background: #ffffff; }
     .cost-card.highlight { border: 2px solid #6366f1; background: #f5f3ff; }
@@ -237,9 +312,9 @@ export const pdfExporter = {
     <h2>1. Executive Business Requirements Document (BRD)</h2>
     <div class="box">
       <strong>Executive Objectives:</strong>
-      <p style="margin: 4px 0 12px;">${brd?.objectives || 'Transform operational workflows with automated AI reasoning.'}</p>
+      ${mdToHtml(brd?.objectives) || '<p>Transform operational workflows with automated AI reasoning.</p>'}
       <strong>Scope Boundaries:</strong>
-      <p style="margin: 4px 0 0;">${brd?.scope || 'Covers intake, automated rule execution, multi-tier approvals, and REST API endpoints.'}</p>
+      ${mdToHtml(brd?.scope) || '<p>Covers intake, automated rule execution, multi-tier approvals, and REST API endpoints.</p>'}
     </div>
 
     <h3>Functional Requirements</h3>
@@ -272,7 +347,7 @@ export const pdfExporter = {
     <h2>2. Solution Architecture & High-Level Design (HLD)</h2>
     <div class="box">
       <strong>Executive Architecture Summary:</strong>
-      <p style="margin: 6px 0 0;">${architecture?.hld_summary || 'Decoupled cloud-native 3-tier architecture with component-driven web client, API Gateway, and resilient database persistence.'}</p>
+      ${mdToHtml(architecture?.hld_summary) || '<p>Decoupled cloud-native 3-tier architecture with component-driven web client, API Gateway, and resilient database persistence.</p>'}
     </div>
 
     <h3>Technology Stack Matrix</h3>
@@ -289,7 +364,7 @@ export const pdfExporter = {
 
     <div class="box">
       <strong>Security & Compliance Safeguards:</strong>
-      <p style="margin: 4px 0 0;">${architecture?.security_notes || 'TLS 1.3 in transit, AES-256 encryption at rest, strict least-privilege RBAC.'}</p>
+      ${mdToHtml(architecture?.security_notes) || '<p>TLS 1.3 in transit, AES-256 encryption at rest, strict least-privilege RBAC.</p>'}
     </div>
 
     <!-- 3. BPMN -->
@@ -335,8 +410,40 @@ export const pdfExporter = {
 
     <div class="page-break"></div>
 
-    <!-- 5. Effort & Cost -->
-    <h2>5. Effort, Cost Bands & Delivery Roadmap</h2>
+    <!-- 5. AI Wireframes & UI Concepts -->
+    ${wireframeScreens.length > 0 ? `
+    <h2>5. AI Wireframe Concepts & UI Design</h2>
+    <p style="font-size: 12.5px; color: #64748b; margin-top: -6px; margin-bottom: 16px;">
+      Synthesized with Google Gemini AI (Dedicated Wireframe Engine) tailored to user requirements.
+    </p>
+    <div style="display: grid; grid-template-columns: 1fr; gap: 14px; margin-bottom: 24px;">
+      ${wireframeScreens.map(s => `
+        <div style="border: 1px solid #cbd5e1; border-radius: 8px; padding: 14px; background: #fafafa;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <strong style="color: #0f172a; font-size: 14px;">${s.title}</strong>
+            <span class="badge" style="background: #e0e7ff; color: #4338ca;">${s.layoutType}</span>
+          </div>
+          <p style="font-size: 12px; color: #475569; margin: 4px 0 10px;">${s.description}</p>
+          ${s.metrics && s.metrics.length > 0 ? `
+            <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 10px;">
+              ${s.metrics.map(m => `
+                <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 6px; padding: 5px 9px; font-size: 11px;">
+                  <span style="color: #64748b;">${m.label}:</span> <strong style="color: ${m.color || '#0f172a'};">${m.value}</strong>
+                </div>
+              `).join('')}
+            </div>
+          ` : ''}
+          <div style="font-size: 11px; color: #334155;">
+            <strong>UI Components:</strong> ${(s.components || []).map(c => c.label).join(' • ')}
+          </div>
+        </div>
+      `).join('')}
+    </div>
+    <div class="page-break"></div>
+    ` : ''}
+
+    <!-- 6. Effort & Cost -->
+    <h2>${wireframeScreens.length > 0 ? '6' : '5'}. Effort, Cost Bands & Delivery Roadmap</h2>
     <div class="cost-grid">
       <div class="cost-card">
         <div style="font-size: 12px; color: #64748b; font-weight: 700; text-transform: uppercase;">Minimum MVP Budget</div>

@@ -72,3 +72,6 @@ service-account.json
 
 # Office temporary files
 ~$*
+
+scratch/
+

@@ -14,10 +14,10 @@
 - **Team Name**: Blueprint_AI
 - **Product**: Compile
 - **Team**:
-- **Dhruv Bhoi-D26CE154 [Leader]**: System Logic & System Architect
-- **Jiya Sheth-D26CE174**: AI Integration & UI/UX
-- **Kush Parekh-D26CE148**: Frontend & Backend
-- **Heet Doshi-D26CE169**: Technical Documentation
+- **Dhruv Bhoi-D26CE154 [Leader]**
+- **Jiya Sheth-D26CE174**
+- **Kush Parekh-D26CE148**
+- **Heet Doshi-D26CE169**
 - **Mentor**:Prof. Rikita Chokshi, CE,CSPIT,CHARUSAT
 - **Competition**: Chaos2Commit 2026
 - **License**: MIT
